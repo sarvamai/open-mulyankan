@@ -1,0 +1,62 @@
+# Thin, trigger-only CI workflow that every sarvamai repo runs on push/PR.
+#
+# It carries, commented out, the org-wide reusable security stage in
+# sarvamai/security-redirect, which in turn pulls in sarvamai/security-workflows.
+# Flow:  <this repo> -> security-redirect -> security-workflows
+#
+# Repos only maintain this file. The security logic itself lives centrally,
+# so pinning `@v2` keeps every repo on the same vetted security stage.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Default to least privilege at the top level; jobs opt into more as needed.
+permissions:
+  contents: read
+
+jobs:
+  # Not called from here: this repository is public and
+  # sarvamai/security-redirect is private. GitHub does not let a public
+  # repository call a reusable workflow that lives in a private one, whatever
+  # the called repo's access list says.
+  #
+  # It cannot be left in place to fail, either. GitHub resolves every `uses:`
+  # when it creates a run, before starting any job, so one unresolvable
+  # reference fails the whole file with *zero* jobs — every job in it,
+  # `needs:` or not, and no PR receives a single check.
+  #
+  # To restore: make sarvamai/security-redirect public, or vendor its stage
+  # into this file. Then uncomment this job and add it back to any `needs:`.
+  #
+  # shift-left-security:
+  # uses: sarvamai/security-redirect/.github/workflows/security-redirect.yml@v2
+  # with:
+  # dockerfile_path: 'Dockerfile'
+  # # Secure default: scan dependencies/filesystem. Set to false only if a
+  # # repo has a documented reason (e.g. no lockfiles, huge vendored tree).
+  # trivy_fs_enabled: true
+  # permissions:
+  # contents: read
+  # security-events: write   # upload SARIF results to the Security tab
+  # actions: read
+  # pull-requests: write     # post scan findings as PR comments
+  #
+  build-and-test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Replace the steps below with your project's real build/test commands.
+      - name: Build
+        run: echo "build steps go here"
+
+      - name: Test
+        run: echo "test steps go here"
