@@ -1,0 +1,50 @@
+# Thin, trigger-only CI workflow that every sarvamai repo runs on push/PR.
+#
+# It delegates the security stage to the org-wide reusable workflow in
+# sarvamai/security-redirect, which in turn pulls in sarvamai/security-workflows.
+# Flow:  <this repo> -> security-redirect -> security-workflows
+#
+# Repos only maintain this file. The security logic itself lives centrally,
+# so pinning `@v2` keeps every repo on the same vetted security stage.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Default to least privilege at the top level; jobs opt into more as needed.
+permissions:
+  contents: read
+
+jobs:
+  shift-left-security:
+    uses: sarvamai/security-redirect/.github/workflows/security-redirect.yml@v2
+    with:
+      dockerfile_path: 'Dockerfile'
+      # Secure default: scan dependencies/filesystem. Set to false only if a
+      # repo has a documented reason (e.g. no lockfiles, huge vendored tree).
+      trivy_fs_enabled: true
+    permissions:
+      contents: read
+      security-events: write   # upload SARIF results to the Security tab
+      actions: read
+      pull-requests: write     # post scan findings as PR comments
+
+  build-and-test:
+    needs: shift-left-security
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Replace the steps below with your project's real build/test commands.
+      - name: Build
+        run: echo "build steps go here"
+
+      - name: Test
+        run: echo "test steps go here"
