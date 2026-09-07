@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/open-mulyankan-logo.png" alt="open-mulyankan logo" width="180">
+</p>
+
 # open-mulyankan — Content Authoring Engine, Layer 1 Workflow Core
 
 The open-source workflow core for examination content authoring: it turns a
