@@ -1,41 +1,31 @@
-# shift-left-security-template
+<p align="center">
+  <img src="docs/assets/open-mulyankan-logo.png" alt="open-mulyankan logo" width="180">
+</p>
 
-Base template for sarvamai repos with the org-wide **shift-left security** CI
-wired in by default.
+# open-mulyankan — Content Authoring Engine, Layer 1 Workflow Core
 
-## Shift-left flow
+The open-source workflow core for examination content authoring: it turns a
+blank page into a sealed, ready question through four human jobs — **authoring,
+review, accessibility check, translation** — under deterministic rules, a
+hash-chained audit trail, and **no AI inside the core**.
 
-```
-<your repo> ──> sarvamai/security-redirect ──> sarvamai/security-workflows
-   (CI)            (reusable @v2)                 (central security stage)
-```
+Part of the National Examination Stack's three-layer architecture:
 
-Your repo only maintains the thin trigger workflow in
-`.github/workflows/ci.yml`. It calls the org's reusable `security-redirect`
-workflow (pinned to `@v2`), which runs the centrally-maintained security
-stage (Trivy image + filesystem scanning, SARIF upload to the Security tab,
-PR findings as comments). Security logic is upgraded centrally — repos get it
-for free by staying on the pinned version.
+| Layer | What it is | Where it lives |
+|---|---|---|
+| 1 · Workflow core | The rules, the records, the seal, the export. Deterministic. | **This repository** (Apache-2.0) |
+| 2 · Intelligence gateway | Models propose through a published interface; humans adopt. | Gateway adapters (planned) |
+| 3 · Managed service | Tendered operation of Layers 1–2. | Commercial contract |
 
-## What's included
+## Status
 
-| File | Purpose |
-|------|---------|
-| `.github/workflows/ci.yml` | Trigger-only CI: runs `shift-left-security`, then `build-and-test`. |
-| `Dockerfile` | Placeholder image that the Trivy scan targets. Replace with your service's real image. |
+M0 — repository foundation. The milestone plan (M0–M6) tracks the Content
+Creation MVP Requirements Specification v4 week-by-week plan; closure is
+evidence, not demonstration. Architecture decisions are recorded as ADRs under
+`docs/adr/` as they land.
 
-## Using it
+## Licence
 
-1. Create a new repo from this template (**Use this template**), or copy the
-   two files above into an existing repo.
-2. Point `dockerfile_path` in `ci.yml` at your Dockerfile if it isn't at the
-   repo root (e.g. `tools/Dockerfile`).
-3. Fill in the real `Build` / `Test` steps in the `build-and-test` job.
-
-## Defaults & knobs
-
-- `trivy_fs_enabled: true` — dependency/filesystem scanning is **on** by
-  default. Flip to `false` only with a documented reason.
-- Permissions follow least privilege: top-level is `contents: read`; the
-  security job adds `security-events: write`, `actions: read`, and
-  `pull-requests: write` (needed to post scan findings on PRs).
+Apache-2.0 — see `LICENSE` and `NOTICE`. Dependencies are restricted to a
+permissive allowlist enforced in CI; copyleft tools run as separate, unmodified
+services.
