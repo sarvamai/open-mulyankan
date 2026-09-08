@@ -38,7 +38,9 @@ def run_kms_conformance(provider: KmsProvider) -> list[str]:
     for plaintext in _CASES:
         ciphertext = provider.encrypt(key, plaintext)
         if ciphertext == plaintext and plaintext:
-            failures.append(f"ciphertext equals plaintext for {len(plaintext)}-byte input")
+            failures.append(
+                f"ciphertext equals plaintext for {len(plaintext)}-byte input"
+            )
         try:
             recovered = provider.decrypt(key, ciphertext)
         except Exception as exc:  # noqa: BLE001 - suite reports, never raises
