@@ -1,0 +1,5 @@
+# Code ownership and review requirements
+# This file specifies which users must review PRs before merging
+
+# All files require review from these maintainers
+* @divyansh-sarvam @saurabh-sarvam
