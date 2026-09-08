@@ -34,7 +34,7 @@ class GoodFakeKms:
         if not ciphertext.startswith(_MARKER):
             raise ValueError("not a FAKE1 ciphertext")
         stream = self._keystream(key_id)
-        body = ciphertext[len(_MARKER):]
+        body = ciphertext[len(_MARKER) :]
         return bytes(b ^ stream[i % len(stream)] for i, b in enumerate(body))
 
     def sign(self, key_id: str, data: bytes) -> bytes:
