@@ -1,0 +1,19 @@
+# Paths Semgrep should not scan. Mirrors .pre-commit-config.yaml's `exclude`
+# plus the usual build output, so CI and local hooks agree on scope.
+#
+# This file replaces Semgrep's built-in defaults once present, so the common
+# directories have to be listed explicitly.
+
+.git/
+.venv/
+venv/
+node_modules/
+__pycache__/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+.next/
+apps/web/dist/
+apps/web/public/
+docs/assets/

@@ -1,11 +1,14 @@
 # Thin, trigger-only CI workflow that every sarvamai repo runs on push/PR.
 #
-# It carries, commented out, the org-wide reusable security stage in
+# It normally delegates the security stage to the org-wide reusable workflow in
 # sarvamai/security-redirect, which in turn pulls in sarvamai/security-workflows.
 # Flow:  <this repo> -> security-redirect -> security-workflows
+# That call is commented out below and says why; until it is restored, the gates
+# are this repo's own, pinned and auditable in-repo.
 #
-# Repos only maintain this file. The security logic itself lives centrally,
-# so pinning `@v2` keeps every repo on the same vetted security stage.
+# On top of the shared stage this repo runs its own `semgrep` SAST job, since
+# the central stage covers dependencies, filesystem and Dockerfile scanning but
+# not static analysis of the source itself.
 
 name: CI
 
@@ -13,7 +16,16 @@ on:
   push:
     branches: [main]
   pull_request:
+    # `ready_for_review` matters because the jobs below skip draft PRs: without
+    # it, taking a PR out of draft would never re-trigger the gate.
+    types: [opened, synchronize, reopened, ready_for_review]
     branches: [main]
+
+# One run per ref. Superseded PR runs are cancelled; runs on `main` are not,
+# because every commit on `main` must keep its own scan result.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Default to least privilege at the top level; jobs opt into more as needed.
 permissions:
@@ -23,36 +35,170 @@ jobs:
   # Not called from here: this repository is public and
   # sarvamai/security-redirect is private. GitHub does not let a public
   # repository call a reusable workflow that lives in a private one, whatever
-  # the called repo's access list says.
+  # the called repo's access list says — which is why the delegated stage ran
+  # while this repo was private and stops the moment it is public.
   #
-  # It cannot be left in place to fail, either. GitHub resolves every `uses:`
-  # when it creates a run, before starting any job, so one unresolvable
-  # reference fails the whole file with *zero* jobs — every job in it,
-  # `needs:` or not, and no PR receives a single check.
+  # It cannot simply be left in place and allowed to fail. GitHub resolves
+  # every `uses:` when it creates a run, before starting any job, so one
+  # unresolvable reference fails the whole file with *zero* jobs — every job in
+  # it, `needs:` or not, and no PR receives a single check.
   #
   # To restore: make sarvamai/security-redirect public, or vendor its stage
-  # into this file. Then uncomment this job and add it back to any `needs:`.
+  # into this file the way `semgrep`, `gitleaks` and `trivy` already are. Then
+  # uncomment this job and add it back to `ci`'s `needs:` below.
   #
   # shift-left-security:
-  # uses: sarvamai/security-redirect/.github/workflows/security-redirect.yml@v2
-  # with:
-  # dockerfile_path: 'Dockerfile'
-  # # Secure default: scan dependencies/filesystem. Set to false only if a
-  # # repo has a documented reason (e.g. no lockfiles, huge vendored tree).
-  # trivy_fs_enabled: true
-  # permissions:
-  # contents: read
-  # security-events: write   # upload SARIF results to the Security tab
-  # actions: read
-  # pull-requests: write     # post scan findings as PR comments
+  #   uses: sarvamai/security-redirect/.github/workflows/security-redirect.yml@v2
+  #   with:
+  #     dockerfile_path: 'Dockerfile'
+  #     # Secure default: scan dependencies/filesystem. Set to false only if a
+  #     # repo has a documented reason (e.g. no lockfiles, huge vendored tree).
+  #     trivy_fs_enabled: true
+  #   permissions:
+  #     contents: read
+  #     security-events: write   # upload SARIF results to the Security tab
+  #     actions: read
+  #     pull-requests: write     # post scan findings as PR comments
+
+  # Static analysis (SAST). Runs in Semgrep's own container so the CLI and its
+  # rule engine come from one pinned image instead of a pip install per run.
   #
-  build-and-test:
+  # Rulepacks mirror the languages actually committed here: Python for
+  # platform/, JS/TS/React for apps/web and design-system/, plus the OWASP Top
+  # Ten pack across everything.
+  #
+  # Suppress a finding inline with `# nosemgrep: <rule-id>` and a reason, so
+  # every exception is visible in review. Path-wide exclusions live in
+  # .semgrepignore. Prefer fixing over suppressing.
+  semgrep:
+    name: 'Semgrep — SAST / OWASP'
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    container:
+      # Digest-pinned so a moved tag cannot change what runs in CI.
+      image: semgrep/semgrep@sha256:34ab619bf1391a24bfda3f05debd0d8a6ce3093c2d5f9d39cfc00f83c1397823 # 1.176.1
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          # Full history: --baseline-commit needs the merge base present.
+          fetch-depth: 0
+
+      # POSIX sh, not bash: the scan must not depend on which shells the
+      # Semgrep image happens to ship.
+      #
+      # On a pull request, --baseline-commit reports only findings the PR
+      # introduces. On a push to main there is no merge base, so the whole tree
+      # is scanned — which also means main is gated on a clean full scan, and a
+      # PR cannot merge a finding in by inheriting a dirty baseline.
+      - name: Run Semgrep SAST scan
+        shell: sh
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -eu
+          baseline=""
+          if [ -n "${BASE_SHA:-}" ]; then
+            baseline="--baseline-commit=${BASE_SHA}"
+          fi
+          # Word splitting on $baseline is intentional: empty means "no flag".
+          # shellcheck disable=SC2086
+          semgrep scan \
+            --config p/owasp-top-ten \
+            --config p/python \
+            --config p/javascript \
+            --config p/typescript \
+            --config p/react \
+            $baseline \
+            --error \
+            --quiet
+
+  # Secret scanning. The pre-commit hook runs Gitleaks too, but hooks can be
+  # skipped with `--no-verify` and never run on a fork's PR, so the same scan
+  # has to exist server-side to be a real gate.
+  #
+  # The scan covers the *whole history*, not just the PR range: a credential
+  # committed months ago is still live, and a range scan would keep declaring
+  # the tree clean. The repo is small enough that this stays fast; switch to
+  # `--log-opts` only if it ever stops being.
+  #
+  # `--redact` keeps found secrets out of the public build log.
+  gitleaks:
+    name: 'Gitleaks — Secret Detection'
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      # The official gitleaks-action needs a paid org licence; the MIT CLI does
+      # not. Pin the version so a scan cannot change under us silently.
+      GITLEAKS_VERSION: '8.30.1'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          # Full history: the scan below walks every commit.
+          fetch-depth: 0
+
+      - name: Install Gitleaks
+        run: |
+          set -euo pipefail
+          curl -fsSL -o /tmp/gitleaks.tgz \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          tar -xzf /tmp/gitleaks.tgz -C /tmp gitleaks
+          sudo install -m 0755 /tmp/gitleaks /usr/local/bin/gitleaks
+          gitleaks version
+
+      - name: Scan full history for secrets
+        run: gitleaks git --redact --config .gitleaks.toml .
+
+  # Dependency CVEs, secrets and misconfiguration. The org-wide stage runs
+  # Trivy too, but `security-redirect@v2` is a mutable tag on a repo this
+  # project cannot read — so its scan cannot be audited from here, and while
+  # the call is disabled it does not run at all. This job is
+  # the frontend's proven configuration, pinned and visible in-repo, and it
+  # fails the build itself rather than only reporting.
+  #
+  # `ignore-unfixed` keeps the gate actionable: a CVE with no released fix
+  # cannot be resolved by this PR. Accepted findings that *do* have a fix go in
+  # .trivyignore with a comment explaining the reachability argument.
+  trivy:
+    name: 'Trivy — Dependency CVEs'
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Run Trivy scanner
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,secret,misconfig
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+          ignore-unfixed: true
+          trivyignores: .trivyignore
+          # Glob, not a bare name: installed trees live at apps/web/node_modules.
+          skip-dirs: '**/node_modules'
+
+  build-and-test:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       # Replace the steps below with your project's real build/test commands.
       - name: Build
@@ -62,7 +208,9 @@ jobs:
         run: echo "test steps go here"
 
   web:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
     defaults:
@@ -70,15 +218,17 @@ jobs:
         working-directory: apps/web
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@v4
+        # No `version:` — the action takes it from apps/web/package.json
+        # "packageManager", so the pinned pnpm lives in exactly one place.
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
-          version: 9.15.9
+          package_json_file: apps/web/package.json
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 20
           cache: pnpm
@@ -111,9 +261,10 @@ jobs:
   # this job, no `ci` check is ever reported, and the PR sits in "Expected —
   # waiting for status to be reported" instead of showing a clean failure.
   ci:
-    needs: [build-and-test, web]
+    needs: [semgrep, gitleaks, trivy, build-and-test, web]
     if: always()
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: read
     steps:
