@@ -1,0 +1,79 @@
+# Repo-local pre-commit checks for Open Mulyankan.
+#
+# Required tooling (install once):
+#   brew install pre-commit gitleaks trivy
+#   trilochana — build from https://github.com/miteshbsjat/trilochana or drop the
+#   pre-built binary on PATH
+#
+# Install hooks:  ./scripts/install-hooks.sh
+# Run all:        pre-commit run --all-files
+# Skip one:       SKIP=gitleaks git commit -m "..."
+#
+# If a machine-wide hook is active (`git config --global core.hooksPath ...`),
+# `pre-commit install` refuses to run; have the global hook chain this config:
+#   if [ -f ".pre-commit-config.yaml" ]; then pre-commit run --hook-stage pre-commit; fi
+#
+# Keep `rev:` values pinned; refresh with `pre-commit autoupdate`.
+
+fail_fast: false
+
+exclude: |
+  (?x)^(
+    .*/node_modules/.*|
+    \.venv/.*|
+    apps/web/public/.*|
+    docs/assets/.*
+  )$
+
+repos:
+  # --- General hygiene ---
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: check-toml
+      - id: detect-private-key
+      - id: no-commit-to-branch
+        args: ['--branch', 'main']
+
+  # --- Secret scanning: Gitleaks ---
+  # False positives: add `# gitleaks:allow` on the line, or the finding's
+  # fingerprint to .gitleaksignore.
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.24.2
+    hooks:
+      - id: gitleaks
+
+  # --- Secret scanning: Trilochana (entropy-based; complements Gitleaks) ---
+  # Ships as source/binary only, so it is wired in as a local hook.
+  # False positives: add a `file:line[:entropy]` entry to .trilochanaignore.
+  - repo: local
+    hooks:
+      - id: trilochana
+        name: Trilochana secret scan
+        entry: scripts/trilochana-scan.sh
+        language: script
+        pass_filenames: false
+        stages: [pre-commit, pre-push]
+
+  # --- Vulnerabilities and misconfiguration: Trivy ---
+  # `--skip-db-update` keeps commits fast; refresh the DB out of band with
+  # `trivy image --download-db-only` (e.g. a daily cron).
+  - repo: https://github.com/cebidhem/pre-commit-trivy
+    rev: v0.2.0
+    hooks:
+      - id: trivy-scan
+        args: ['--severity', 'HIGH,CRITICAL', '--scanners', 'vuln,secret', '--skip-db-update']
+
+  # --- Python: lint and format (platform/core, platform/spi) ---
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.9
+    hooks:
+      - id: ruff
+        args: ['--fix']
+      - id: ruff-format

@@ -16,6 +16,7 @@ htmlcov/
 # Node
 node_modules/
 apps/web/dist/
+.next/
 *.tsbuildinfo
 
 # Environment and secrets
