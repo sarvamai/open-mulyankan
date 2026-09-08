@@ -2,6 +2,12 @@
 
 Thanks for helping build Open Mulyankan. A few rules keep the project trustworthy.
 
+Start with [AGENTS.md](AGENTS.md) — it records what actually exists in the tree
+today, the invariants a change must not break, and how to run each stack. The
+nested `AGENTS.md` files (`platform/`, `apps/web/`, `design-system/`, `docs/`)
+carry the rules specific to those trees. It is written for coding agents and is
+just as useful to a new human contributor.
+
 ## Ground rules
 
 - **Small, meaningful PRs.** One concern per PR; the diff should be reviewable in one
@@ -11,6 +17,9 @@ Thanks for helping build Open Mulyankan. A few rules keep the project trustworth
   `docs/traceability.md`).
 - **Design decisions as ADRs.** If a change settles a design question, add or amend an
   ADR under `docs/adr/` instead of burying the decision in a PR description.
+- **Keep the agent context true.** If a change makes an `AGENTS.md` statement wrong —
+  a path that now exists, a command that changed, a constraint that lifted — update it
+  in the same PR. A stale one is worse than none: it is read as fact.
 - **Confidentiality invariants are non-negotiable.** No question content in logs, audit
   events, or error messages; no human path to sealed plaintext; no AI in the core
   (ADR-0003).

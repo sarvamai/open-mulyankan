@@ -1,0 +1,50 @@
+{
+  "name": "@open-mulyankan/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hugeicons/core-free-icons": "3.3.0",
+    "@sarvam/tatva": "file:../../design-system/tatva/sarvam-tatva-0.0.34.tgz",
+    "next": "16.3.3",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "react-hook-form": "7.71.1",
+    "sonner": "2.0.7",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "autoprefixer": "10.4.23",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.3",
+    "postcss": "8.5.23",
+    "tailwindcss": "3.4.19",
+    "typescript": "^5"
+  },
+  "packageManager": "pnpm@10.34.5+sha512.a4ee05f2f73658255bd6a89859c065a45c28a57daefae2c893a168ee2b73168c37b91e83e57ea67654ad03f03031746430e8bce38e362e042605fb8abc80192e",
+  "engines": {
+    "node": ">=20.9"
+  },
+  "pnpm": {
+    "ignoredBuiltDependencies": [
+      "unrs-resolver"
+    ],
+    "overrides": {
+      "@ai-sdk/provider-utils": "3.0.28",
+      "ai": "5.0.52",
+      "jsondiffpatch": "0.7.6",
+      "linkify-it": "5.0.2",
+      "postcss": "8.5.23",
+      "sharp": "0.35.4"
+    }
+  }
+}
