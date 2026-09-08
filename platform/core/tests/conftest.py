@@ -32,7 +32,7 @@ class FakeKms:
         return b"FAKE:" + plaintext
 
     def decrypt(self, key_id: str, ciphertext: bytes) -> bytes:
-        return ciphertext[len(b"FAKE:"):]
+        return ciphertext[len(b"FAKE:") :]
 
     def sign(self, key_id: str, data: bytes) -> bytes:
         return b"FAKE-SIG"
