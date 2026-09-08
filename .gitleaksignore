@@ -1,0 +1,8 @@
+# Gitleaks allowlist.
+#
+# One finding fingerprint per line, in the form:
+#   <commit>:<file>:<rule-id>:<line>
+# Get the fingerprint from the Gitleaks output for the finding.
+#
+# Every entry needs a comment explaining why it is not a real secret. Prefer an
+# inline `# gitleaks:allow` comment when the false positive lives on one line.

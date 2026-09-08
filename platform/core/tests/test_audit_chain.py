@@ -23,7 +23,9 @@ def _log_with_three_events() -> AuditLog:
         object_refs=("artefact-a1", "version-v1"),
         payload={"content_hash": "ab" * 32},
     )
-    log.append(actor="reviewer-002", action="review.approved", object_refs=("version-v1",))
+    log.append(
+        actor="reviewer-002", action="review.approved", object_refs=("version-v1",)
+    )
     return log
 
 
