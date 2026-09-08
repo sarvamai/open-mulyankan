@@ -28,7 +28,7 @@ question content in `console.log`, error messages, URLs, or telemetry.
 Which roles this app serves is unsettled — see the root file's open questions.
 Ask before building structure that assumes one reading.
 
-## Four load-bearing wires
+## Load-bearing wires
 
 Break one and it looks like a component bug, not a config error:
 
@@ -38,6 +38,7 @@ Break one and it looks like a component bug, not a config error:
 | `src/app/layout.tsx` | `@sarvam/tatva/styles.css` imported **before** `./globals.css` — tokens and fonts first, app utilities second |
 | `next.config.ts` | `transpilePackages: ['@sarvam/tatva']` — the package ships untranspiled ESM |
 | `.npmrc` | `strict-peer-dependencies=false` — tatva declares `sonner@^1.4`, this app tracks 2.x |
+| `package.json` | `pnpm.overrides` force patched transitive deps (trivy HIGH findings arriving via tatva and next: `jsondiffpatch`, `linkify-it`, `postcss`, `sharp`) — security-driven, not redundant |
 
 **No Tailwind 4** (tatva ships a v3 CommonJS preset). **No registry auth, no
 `@hugeicons-pro`** — credential-free is the point.
@@ -76,5 +77,5 @@ fine and renders unstyled.
 ## Keeping this file true
 
 Update it when you add a real surface or dependency (the "what exists" list),
-change any of the four wires, or bump the tatva version — component and prop
+change any of the wires, or bump the tatva version — component and prop
 claims are version-specific, so re-verify them with the commands above.
