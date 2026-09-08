@@ -1,4 +1,4 @@
-import { Toaster, TooltipProvider } from '@sarvam/tatva';
+import { AnimationProvider, Toaster, TooltipProvider } from '@sarvam/tatva';
 import type { Metadata, Viewport } from 'next';
 
 // Design system first: tokens, base styles, and the bundled Matter/Season font
@@ -23,10 +23,15 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en" data-theme="default">
       <body className="h-svh overflow-hidden">
-        <TooltipProvider>
-          {children}
-          <Toaster position="bottom-right" />
-        </TooltipProvider>
+        {/* AnimationProvider is tatva's micro-interaction layer: without it
+            every component renders static. Reduced-motion is respected
+            automatically, so it is always safe to mount at the root. */}
+        <AnimationProvider>
+          <TooltipProvider>
+            {children}
+            <Toaster position="bottom-right" />
+          </TooltipProvider>
+        </AnimationProvider>
       </body>
     </html>
   );
