@@ -15,8 +15,8 @@ htmlcov/
 
 # Node
 node_modules/
-apps/web/dist/
 *.tsbuildinfo
+# Next.js build output is ignored by apps/web/.gitignore.
 
 # Environment and secrets
 .env

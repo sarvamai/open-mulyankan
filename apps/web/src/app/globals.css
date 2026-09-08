@@ -1,0 +1,21 @@
+/* Tatva's design tokens, base styles and font faces are loaded ahead of this
+ * file by `import '@sarvam/tatva/styles.css'` in layout.tsx. Keep that order:
+ * these three directives generate app utilities that must be able to override
+ * the design system's base layer, not the other way round. */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body {
+    height: 100%;
+  }
+
+  body {
+    background-color: rgb(var(--tatva-surface-primary));
+    color: rgb(var(--tatva-content-primary));
+    font-family: var(--tatva-family-matter);
+    -webkit-font-smoothing: antialiased;
+  }
+}
