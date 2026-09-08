@@ -76,6 +76,7 @@ closure is evidence, not demonstration.
 | [`docs/adr/`](docs/adr/) | Architecture decision records |
 | [`docs/provider-contracts.md`](docs/provider-contracts.md) | How providers plug in and certify |
 | [`docs/traceability.md`](docs/traceability.md) | Requirement → component → test index |
+| [`apps/web/README.md`](apps/web/README.md) | Web app: running it, and the vendored design system |
 
 ## Contributing
 
@@ -90,4 +91,6 @@ privately — see [SECURITY.md](SECURITY.md).
 
 ## Licence
 
-Apache-2.0 — see [LICENSE](LICENSE) and [NOTICE](NOTICE).
+Apache-2.0 — see [LICENSE](LICENSE) and [NOTICE](NOTICE). One vendored build
+artefact, the `@sarvam/tatva` design system under `design-system/tatva/`, is
+proprietary and sits outside that licence; `NOTICE` records the exception.
