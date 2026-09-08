@@ -12,9 +12,15 @@ invariants; `design-system/AGENTS.md` covers the vendored tarball.
 
 ## What exists
 
-`src/app/{layout,page,globals.css}`. `page.tsx` is a design-system smoke page.
-No API client, auth, routing structure, store, tests, or Storybook yet — check
-before importing, and don't copy structure from the sibling
+`src/app/{layout,page,globals.css}`, the curriculum manager at
+`src/app/curriculum/page.tsx` (upload/delete/manage over client-side mock
+data — no API yet), and a placeholder at `src/app/settings/page.tsx`.
+`src/components/shell/` holds the universal layout: `AppShell` (sidebar +
+content frame, modelled on mulyankan-frontend's GlobalShell) and `PageShell`
+(sticky Header + scrolling capped content, modelled on its PageShell);
+`src/components/curriculum/` holds the manager view. `page.tsx` is a
+design-system smoke page. No API client, auth, store, tests, or Storybook
+yet — check before importing, and don't copy structure from the sibling
 `mulyankan-frontend` repo on the assumption it is here.
 
 ## This app is an untrusted client

@@ -1,6 +1,8 @@
 import { AnimationProvider, Toaster, TooltipProvider } from '@sarvam/tatva';
 import type { Metadata, Viewport } from 'next';
 
+import { AppShell } from '@/components/shell/app-shell';
+
 // Design system first: tokens, base styles, and the bundled Matter/Season font
 // faces. globals.css follows so app utilities can win on source order.
 import '@sarvam/tatva/styles.css';
@@ -28,7 +30,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             automatically, so it is always safe to mount at the root. */}
         <AnimationProvider>
           <TooltipProvider>
-            {children}
+            <AppShell>{children}</AppShell>
             <Toaster position="bottom-right" />
           </TooltipProvider>
         </AnimationProvider>
