@@ -7,3 +7,10 @@ Stack Content Authoring Engine (Layer 1 workflow core).
 Licensed under the Apache License, Version 2.0. Dependencies are limited to
 the permissive allowlist recorded in the licence ADR; copyleft tools run as
 separate, unmodified services.
+
+One exception: design-system/tatva/sarvam-tatva-0.0.34.tgz is the @sarvam/tatva design
+system, which is proprietary to Sarvam AI and not licensed under Apache-2.0. It
+is redistributed here as an unmodified build artefact for use by this project's
+web application only. See design-system/tatva/README.md for provenance, and ADR-0001
+for the decision to vendor it. The Apache-2.0 licence covers this repository's
+own source, not that artefact.

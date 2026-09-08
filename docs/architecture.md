@@ -28,12 +28,13 @@ Draft → In Review → In Accessibility Check → Sealing → Sealed
 
 | Spec group | Repo location |
 |---|---|
-| Experience (role surfaces) | `apps/web` |
+| Experience (role surfaces) | `apps/web` (Next.js, `@sarvam/tatva`) |
 | Application (domain services) | `platform/core` (FastAPI) |
 | Workers (protected jobs) | `platform/core` workers + `providers/*` |
 | Data (PostgreSQL, audit store, object store) | `db/`, `providers/storage-*`, `providers/kms-*` |
 | Provider interfaces | `platform/spi` (`mulyankan-spi`) |
 | Provider implementations | `providers/` |
+| Vendored design system (static tarball) | `design-system/` |
 
 ## Invariants (violating any of these is a design bug)
 

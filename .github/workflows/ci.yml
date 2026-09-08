@@ -49,6 +49,48 @@ jobs:
       - name: Test
         run: echo "test steps go here"
 
+  web:
+    needs: shift-left-security
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: apps/web/pnpm-lock.yaml
+
+      # No registry credential: @sarvam/tatva resolves from the tarball in
+      # design-system/tatva/. See ADR-0001 and design-system/tatva/README.md.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify the vendored design system is intact
+        working-directory: design-system/tatva
+        run: shasum -a 256 -c SHA256SUMS
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Check types
+        run: pnpm check-types
+
+      - name: Build
+        run: pnpm build
+
   # Aggregate gate: this is the single context branch protection requires on
   # main. Required checks are matched by *job* name, so this job's name is the
   # contract — the jobs above can be renamed or split without touching the
@@ -58,7 +100,7 @@ jobs:
   # this job, no `ci` check is ever reported, and the PR sits in "Expected —
   # waiting for status to be reported" instead of showing a clean failure.
   ci:
-    needs: [shift-left-security, build-and-test]
+    needs: [shift-left-security, build-and-test, web]
     if: always()
     runs-on: ubuntu-latest
     permissions:
