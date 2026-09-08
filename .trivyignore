@@ -1,0 +1,11 @@
+# Trivy allowlist.
+#
+# One CVE id per line, each with a comment that states why the finding is
+# accepted: what the dependency is used for, why it is not reachable from a
+# shipped path, and what would let the entry be removed.
+#
+# `ignore-unfixed: true` in CI already suppresses findings with no released
+# fix, so an entry here means "there is a fix and we are deliberately not
+# taking it yet" — which needs the reasoning above.
+#
+# No accepted findings today.

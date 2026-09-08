@@ -1,0 +1,25 @@
+# Gitleaks configuration.
+#
+# The upstream default ruleset does the work; this file exists so CI and the
+# pre-commit hook are driven by one explicit, reviewable config rather than an
+# implicit default that can change under us on a version bump.
+#
+# Suppressing a false positive, in order of preference:
+#   1. `# gitleaks:allow` on the offending line — scoped to that line, visible
+#      in review, and survives rebases.
+#   2. A fingerprint entry in .gitleaksignore, with a comment saying why.
+#   3. An allowlist rule here — only for a value that is genuinely public
+#      (e.g. a domain-restricted browser key), never for a live credential.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Paths that legitimately contain secret-shaped strings"
+
+# This file names the patterns it allows, and the docs describe credential
+# handling; neither carries a live credential.
+paths = [
+  '''\.gitleaks\.toml$''',
+  '''\.gitleaksignore$''',
+]

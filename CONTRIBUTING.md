@@ -31,6 +31,64 @@ just as useful to a new human contributor.
 3. Keep commits focused; the PR description states what changed and why.
 4. Sign off your commits (`git commit -s`) — the Developer Certificate of Origin applies.
 
+## Security checks
+
+Every PR is gated on the `ci` context, which aggregates:
+
+- **`shift-left-security`** — the org-wide stage (`sarvamai/security-redirect`).
+- **`semgrep`** — SAST over the committed source: OWASP Top Ten plus the Python and
+  JS/TS/React rulepacks.
+- **`gitleaks`** — secret detection across the whole git history.
+- **`trivy`** — dependency CVEs, secrets and misconfiguration.
+- **`web`** / **`build-and-test`** — lint, types, build.
+
+None of these needs a credential. If a future job does, it reads an **organisation**
+secret — no repository-level secrets here, so one rotation covers every repo and a fork
+never sees a value.
+
+Draft PRs skip these jobs; marking a PR ready for review triggers them. Run all three
+scans locally before pushing:
+
+```
+uvx semgrep scan --config p/owasp-top-ten --config p/python \
+  --config p/javascript --config p/typescript --config p/react --error
+gitleaks git --redact --config .gitleaks.toml .
+trivy fs --severity HIGH,CRITICAL --ignore-unfixed --scanners vuln,secret,misconfig \
+  --skip-dirs '**/node_modules' --exit-code 1 .
+```
+
+Semgrep on a PR fails only on findings the PR introduces; on `main` it scans the whole
+tree, so `main` always has a clean full scan behind it. Gitleaks always scans every
+commit — a credential committed months ago is still live.
+
+Fix findings rather than silencing them. When a finding really is wrong, suppress it at
+the narrowest scope, with a comment saying why, so the exception shows up in review:
+`# nosemgrep: <rule-id>` or `# gitleaks:allow` on the line; then `.semgrepignore` /
+`.gitleaksignore` / `.trivyignore` for anything broader. Trivy already ignores CVEs with
+no released fix, so a `.trivyignore` entry means a fix exists and is being deferred —
+say why, and say what would remove the entry.
+
+`.pre-commit-config.yaml` runs Gitleaks, Trilochana, Trivy and Ruff before each commit;
+install it with `./scripts/install-hooks.sh`. The hooks are a convenience, not the gate —
+CI re-runs what matters, because hooks can be skipped with `--no-verify` and never run on
+a fork's PR. (Trilochana is hook-only: it ships as source, so there is no cheap way to
+run it in CI yet.)
+
+### Supply-chain rules
+
+- **Pin every GitHub Action to a full commit SHA**, version in a trailing comment. A
+  mutable tag can be repointed by its owner — this is how the `trivy-action` and
+  `kics-github-action` compromises spread — and Semgrep fails the build on one. Container
+  images are pinned by digest for the same reason.
+- **Dependency versions come from the committed lockfile**; CI installs with
+  `--frozen-lockfile`. `apps/web/.npmrc` also sets `minimum-release-age`, so a version
+  published in the last 7 days is not resolved at all and a compromised release has to
+  survive a week of public scrutiny first.
+- **Dependency build scripts stay blocked.** pnpm 10 does not run them unless a package
+  is listed in `pnpm.onlyBuiltDependencies`. Add a package there only if the build
+  genuinely fails without it; if it is blocked and everything still works, record that in
+  `pnpm.ignoredBuiltDependencies` instead.
+
 ## Licence
 
 By contributing, you agree that your contributions are licensed under Apache-2.0.
