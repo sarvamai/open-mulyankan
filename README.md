@@ -1,41 +1,93 @@
-# shift-left-security-template
+<p align="center">
+  <img src="docs/assets/open-mulyankan-logo.png" alt="open-mulyankan logo" width="180">
+</p>
 
-Base template for sarvamai repos with the org-wide **shift-left security** CI
-wired in by default.
+<h1 align="center">open-mulyankan</h1>
 
-## Shift-left flow
+<p align="center">
+  An open-source <strong>question paper authoring system</strong> built for
+  <strong>confidentiality</strong> and <strong>control</strong>.
+</p>
+
+<p align="center">
+  <a href="https://github.com/sarvamai/open-mulyankan/actions/workflows/ci.yml"><img src="https://github.com/sarvamai/open-mulyankan/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" alt="License: Apache-2.0"></a>
+  <img src="https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white" alt="Python 3.12+">
+  <img src="https://img.shields.io/badge/Node-20-339933?logo=nodedotjs&logoColor=white" alt="Node 20">
+  <img src="https://img.shields.io/badge/core-deterministic%20%C2%B7%20AI%20free-2EA44F" alt="Deterministic, AI-free core">
+</p>
+
+---
+
+**Open Mulyankan** turns a blank page into a sealed, exam-ready question — through four
+human jobs, under rules the examining authority owns.
+
+Subject experts author. Independent reviewers check. Accessibility specialists verify that
+every candidate can read and answer the question. Translators produce language variants
+that are exactly as hard as the original. When every job is done, **the system seals the
+question into an encrypted repository that no human — not even an administrator — can
+reopen**, and reports it ready for paper assembly.
+
+## Why it is different
+
+- **Confidentiality by construction.** Sealed questions are unreadable to any human role.
+  The audit trail is append-only and hash-chained — tampering is detectable — and carries
+  no question content. Logs, traces, and error messages never see plaintext.
+- **Humans decide; rules verify.** Every judgement is made by a qualified person or a
+  published, deterministic rule. The core contains **no AI**: models may only *propose*
+  through a gateway, and a human must adopt every proposal before it becomes a draft.
+- **The authority owns the core.** The rules, the records, the seal, and the export are
+  open source under Apache-2.0 — no enterprise edition, no private fork.
+- **No lock-in.** Identity, storage, keys, and models plug in behind versioned,
+  conformance-tested provider interfaces. Switching any of them is a configuration
+  change, not a rewrite.
+
+## How it works
 
 ```
-<your repo> ──> sarvamai/security-redirect ──> sarvamai/security-workflows
-   (CI)            (reusable @v2)                 (central security stage)
+Author → Review → Accessibility check → Translation (per language) → Seal → Ready
 ```
 
-Your repo only maintains the thin trigger workflow in
-`.github/workflows/ci.yml`. It calls the org's reusable `security-redirect`
-workflow (pinned to `@v2`), which runs the centrally-maintained security
-stage (Trivy image + filesystem scanning, SARIF upload to the Security tab,
-PR findings as comments). Security logic is upgraded centrally — repos get it
-for free by staying on the pinned version.
+Each job is performed by a different person, and none can be skipped. A return never
+edits the returned version — it creates a new linked draft, and the original stays as
+immutable evidence. The server-side state machine is authoritative; clients are never
+trusted.
 
-## What's included
+## Status
 
-| File | Purpose |
-|------|---------|
-| `.github/workflows/ci.yml` | Trigger-only CI: runs `shift-left-security`, then `build-and-test`. |
-| `Dockerfile` | Placeholder image that the Trivy scan targets. Replace with your service's real image. |
+M0 — foundation. The milestone ladder tracks the MVP specification's week-by-week plan;
+closure is evidence, not demonstration.
 
-## Using it
+| Milestone | Scope |
+|---|---|
+| M0 | Repository foundation, design record, provider interfaces |
+| M1 | Identity, cycle & taxonomy, audit chain, walking skeleton |
+| M2 | Authoring workspace: editor, validation, similarity check, submission |
+| M3 | Review + accessibility gates, operator surface |
+| M4 | Translation, sealing, readiness, downstream handoff |
+| M5 | Hardening: production install, penetration test, WCAG audit |
+| M6 | Production acceptance and handover pack |
 
-1. Create a new repo from this template (**Use this template**), or copy the
-   two files above into an existing repo.
-2. Point `dockerfile_path` in `ci.yml` at your Dockerfile if it isn't at the
-   repo root (e.g. `tools/Dockerfile`).
-3. Fill in the real `Build` / `Test` steps in the `build-and-test` job.
+## Documentation
 
-## Defaults & knobs
+| Document | Purpose |
+|---|---|
+| [`docs/architecture.md`](docs/architecture.md) | Layers, state machine, invariants, trust boundaries |
+| [`docs/adr/`](docs/adr/) | Architecture decision records |
+| [`docs/provider-contracts.md`](docs/provider-contracts.md) | How providers plug in and certify |
+| [`docs/traceability.md`](docs/traceability.md) | Requirement → component → test index |
 
-- `trivy_fs_enabled: true` — dependency/filesystem scanning is **on** by
-  default. Flip to `false` only with a documented reason.
-- Permissions follow least privilege: top-level is `contents: read`; the
-  security job adds `security-events: write`, `actions: read`, and
-  `pull-requests: write` (needed to post scan findings on PRs).
+## Contributing
+
+Small, meaningful PRs; tests green before review; design decisions recorded as ADRs.
+See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Security
+
+Confidentiality is this system's reason to exist. If you find a way to read sealed
+content, bypass separation of duties, or tamper with the audit chain, please report it
+privately — see [SECURITY.md](SECURITY.md).
+
+## Licence
+
+Apache-2.0 — see [LICENSE](LICENSE) and [NOTICE](NOTICE).
