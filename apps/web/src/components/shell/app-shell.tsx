@@ -8,15 +8,28 @@ import { useState } from 'react';
 import type { ReactNode } from 'react';
 
 /**
- * Primary navigation. Flat items, not groups: with a single main destination,
- * a one-item group would violate the design system's no-single-item-groups
- * rule. Add future destinations here; keep Settings in the footer below.
+ * Primary navigation. Flat items, not groups: a one-item group would
+ * violate the design system's no-single-item-groups rule. Add future
+ * destinations here; keep Settings in the footer below.
+ *
+ * `global-education` and `files-01` are not tatva built-ins — they come
+ * from `AppIconProvider` (`icon-registry.tsx`).
  */
 const MENU_ITEMS: SidebarMenuItem[] = [
   {
-    label: 'Curriculum',
-    href: '/curriculum',
-    icon: 'layers',
+    label: 'Knowledge Base',
+    href: '/knowledge-base',
+    icon: 'global-education',
+  },
+  {
+    label: 'Question Bank',
+    href: '/question-bank',
+    icon: 'files-01',
+  },
+  {
+    label: 'Exam Paper',
+    href: '/exam-paper',
+    icon: 'file',
   },
 ];
 
