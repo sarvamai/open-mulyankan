@@ -1,8 +1,19 @@
 # `design-system/` — vendored design system
 
-Holds `tatva/sarvam-tatva-0.0.34.tgz`: the published `@sarvam/tatva` tarball,
-committed as a static build artefact, plus `SHA256SUMS` and a README covering
-provenance and how to move to a newer version.
+Holds `tatva/`: the published `@sarvam/tatva` tarball, committed as a static
+build artefact. How to *use* its components is in `apps/web/AGENTS.md`.
+
+## The tarball is read-only
+
+- **Only the Sarvam team replaces the tarball.** Never unpack, patch,
+  re-pack, or hand-edit the `.tgz`, and never commit an extracted `dist/`.
+  A tatva change happens in the tatva repository and arrives here as a new
+  published version — it is never produced from inside this repository.
+- A new version is one coordinated change: the `.tgz`, `SHA256SUMS`,
+  `README.md` provenance, and the `file:` specifier in
+  `apps/web/package.json` all move together.
+- CI runs `shasum -a 256 -c SHA256SUMS` on every push and PR, so a stale or
+  mismatched hash fails the build rather than passing quietly.
 
 ## Why it is a file and not a version
 
@@ -19,24 +30,11 @@ registry line, an auth token, a `google-artifactregistry-auth` step, or a
 `@hugeicons-pro` dependency to make something easier. ADR-0001 records the
 decision; `tatva/README.md` records the mechanics.
 
-## Rules
+The artefact is **proprietary and not Apache-2.0** — the single documented
+exception to this repository's dependency licence policy, recorded in `NOTICE`
+and ADR-0001. Don't relicense it, and don't add a second vendored proprietary
+dependency without an ADR.
 
-- **The tarball is opaque.** Never unpack, patch, re-pack, or hand-edit it,
-  and never commit an extracted `dist/`. If tatva needs a change, it is a
-  change in the tatva repository followed by a new published version.
-- **A new version is a deliberate three-part commit**: replace the `.tgz`,
-  regenerate `SHA256SUMS` (`shasum -a 256 <file> > SHA256SUMS`), and update the
-  `file:` specifier in `apps/web/package.json` plus the version and hash in
-  `tatva/README.md`. Producing the tarball needs registry access —
-  `npm pack @sarvam/tatva@<version>` on an authenticated machine. You cannot
-  fetch it from here.
-- CI verifies `shasum -a 256 -c SHA256SUMS` on every run, so a stale hash
-  fails the build rather than passing quietly.
-- The artefact is **proprietary and not Apache-2.0** — the single documented
-  exception to this repository's dependency licence policy, recorded in
-  `NOTICE` and ADR-0001. Don't relicense it, and don't add a second vendored
-  proprietary dependency without an ADR.
+## Keeping this file true
 
-For how to *use* tatva components (0.0.34 has no `AppShell` or
-`AnimationProvider`, `Box` takes no `className`, icon names are a closed set),
-see `apps/web/AGENTS.md`.
+Update it when the vendoring approach or its rationale changes.
