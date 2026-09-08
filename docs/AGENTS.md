@@ -51,3 +51,8 @@ are `Status` / `Deciders` / `Date`, then `## Context`, `## Decision`,
 - British spelling, as used throughout (`licence`, `artefact`, `behaviour`).
 - Tables and prose over diagrams; there are no image assets except the logo in
   `assets/`.
+
+## Keeping this file true
+
+Update it when you add a document here, change the ADR template, or create a
+planned file the root `AGENTS.md` still lists as absent.

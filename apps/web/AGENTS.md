@@ -4,91 +4,78 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
-# `apps/web` — Open Mulyankan experience layer
+# `apps/web` — experience layer
 
-Read the root `AGENTS.md` first (invariants, M0 reality) and
-`design-system/AGENTS.md` before writing UI.
+Next.js 16 App Router · React 19 · Tailwind **3** · pnpm 9 · Node >= 20.9.
+`pnpm dev | build | start | lint | check-types`. Root `AGENTS.md` has the
+invariants; `design-system/AGENTS.md` covers the vendored tarball.
 
-Next.js 16 App Router · React 19 · TypeScript · Tailwind **3** · pnpm 9 ·
-Node >= 20.9. Scripts: `pnpm dev`, `build`, `start`, `lint`, `check-types`.
+## What exists
 
-## What is actually here
-
-`src/app/{layout,page,globals.css}` and nothing else. `page.tsx` is a smoke
-page that exercises the design-system wiring — tokens, fonts, icons, client
-state, a toast. There is **no** API client, auth, routing structure, state
-management, test setup, or Storybook in this app yet. Don't import from paths
-that would imply otherwise, and don't copy structure from the sibling
-`mulyankan-frontend` repo on the assumption it exists here.
+`src/app/{layout,page,globals.css}`. `page.tsx` is a design-system smoke page.
+No API client, auth, routing structure, store, tests, or Storybook yet — check
+before importing, and don't copy structure from the sibling
+`mulyankan-frontend` repo on the assumption it is here.
 
 ## This app is an untrusted client
 
-ADR-0001 (as amended) and ADR-0008: the server-side state machine is
-authoritative. A React **server** component here is still a client of
-`platform/core` — it may not read a database, hold a privileged credential, or
-make an authorization decision. Render surfaces, call the API, show what the
-server says. Never re-implement a workflow guard in the browser and treat it
-as enforcement; a client-side check is a courtesy, and the server must refuse
-independently.
+The server state machine is authoritative (ADR-0001 amended, ADR-0008). A
+React **server** component here is still a client of `platform/core`: no
+database reads, no privileged credentials, no authorization decisions. A
+client-side check is a courtesy; the server must refuse independently. No
+question content in `console.log`, error messages, URLs, or telemetry.
 
-Also inherited from the root invariants: no question content in
-`console.log`, in an error boundary's message, in a URL, or in telemetry.
+Which roles this app serves is unsettled — see the root file's open questions.
+Ask before building structure that assumes one reading.
 
-Which roles this app serves is genuinely unsettled — `docs/architecture.md`
-maps all role surfaces here, ADR-0008 gives content roles a separate signed
-thin client and leaves oversight roles to this web UI. Ask before building
-structure that assumes one reading.
+## Load-bearing wires
 
-## The design system is vendored — four load-bearing wires
+Break one and it looks like a component bug, not a config error:
 
-`@sarvam/tatva` is proprietary, resolved from a committed tarball via
-`file:../../design-system/tatva/sarvam-tatva-0.0.34.tgz`. Break any of these
-four and the failure looks like a broken component rather than a config error:
-
-| File | Why it matters |
+| File | Why |
 |---|---|
-| `tailwind.config.ts` | `presets: [tatvaPreset]` supplies the `tatva-*` tokens; the `content` glob over `node_modules/@sarvam/tatva/dist/**` is what makes tatva's own utility classes get generated |
-| `src/app/layout.tsx` | `import '@sarvam/tatva/styles.css'` **before** `./globals.css` — tokens and font faces first, app utilities second so they can override |
+| `tailwind.config.ts` | `presets: [tatvaPreset]` gives the `tatva-*` tokens; the `content` glob over `node_modules/@sarvam/tatva/dist/**` is what generates tatva's own classes |
+| `src/app/layout.tsx` | `@sarvam/tatva/styles.css` imported **before** `./globals.css` — tokens and fonts first, app utilities second |
 | `next.config.ts` | `transpilePackages: ['@sarvam/tatva']` — the package ships untranspiled ESM |
-| `.npmrc` | `strict-peer-dependencies=false` — tatva declares `sonner@^1.4` while this app tracks 2.x |
+| `.npmrc` | `strict-peer-dependencies=false` — tatva declares `sonner@^1.4`, this app tracks 2.x |
+| `package.json` | `pnpm.overrides` pin transitive deps to fixed, patched versions (arriving via tatva and next: `@ai-sdk/provider-utils`, `ai`, `jsondiffpatch`, `linkify-it`, `postcss`, `sharp`) — deliberate, not redundant |
 
-**Do not migrate to Tailwind 4.** Tatva ships a v3 CommonJS preset. Do not add
-a private registry, an `.npmrc` auth token, or a Hugeicons Pro dependency:
-staying credential-free is the reason the tarball is vendored (ADR-0001,
-`design-system/tatva/README.md`).
+**No Tailwind 4** (tatva ships a v3 CommonJS preset). **No registry auth, no
+`@hugeicons-pro`** — credential-free is the point.
 
 ## Writing UI
 
-Compose tatva components; don't hand-roll what the design system covers. The
-package's own rules are at
-`node_modules/@sarvam/tatva/.agent/rules/tatva-frontend.mdc` — read them, with
-two corrections for the **0.0.34** that is vendored here:
+Compose tatva components; don't hand-roll what it covers. Its own rules are at
+`node_modules/@sarvam/tatva/.agent/rules/tatva-frontend.mdc` — written for a
+later release, so **verify every component and prop against the installed
+version** rather than trusting those rules or your memory:
 
-- `AppShell` **does not exist** in this version, though those rules call it the
-  preferred shell — it is from a later release. `AnimationProvider`,
-  `SidebarProvider` and `Sidebar` do exist and are already or should be used.
-  Verify before using: `node -e "import('@sarvam/tatva').then(m => console.log('X' in m))"`
-  is authoritative, because a few components are re-exported from subpath
-  modules and so do not appear in `dist/index.d.ts`'s final export list.
-- There is no tatva MCP server wired up in this repo, so `list_components` /
-  `get_component_docs` are unavailable. `dist/index.d.ts` is the source of
-  truth for props; read it instead of guessing.
+```bash
+node -e "import('@sarvam/tatva').then(m=>console.log('AppShell' in m))"   # exports
+grep -n "interface ButtonProps" -A 30 node_modules/@sarvam/tatva/dist/index.d.ts
+```
 
-Hard constraints that produce type errors or silent visual breakage:
+Runtime beats types here: some components are re-exported from subpath modules
+and never appear in `dist/index.d.ts`'s export list. `AppShell` is one thing
+those rules recommend that this version does not have.
 
-- **`Box` accepts no `className`.** Layout goes through its props: `p`, `px`,
-  `gap`, `bg`, `rounded`, `shadow`, `w`, `h`, `display`, `direction`, `align`,
-  `justify`, `overflow`. Same for other tatva components — prefer props, and
-  put spacing on the parent's `gap`, never a margin on the child.
-- **Only `tatva-*` utility tokens**, never raw Tailwind values (`p-4`,
-  `text-gray-500`, `rounded-lg`). Spacing is a 2px base: `p={8}` is 16px.
-  Three tiers only — `gap={2}` (parts of one thing), `gap={10}` (sibling
-  fields), `gap={12}` (regions).
-- **Icon names are a closed set** in this version (~88 built-ins). Never guess
-  one; list them from `dist/index.mjs` (`iconComponents`) or use `iconNames`.
-- `Text` uses `variant` (`heading-lg`, `body-sm`, `label-md`, …) and `tone`,
-  not `size`/`color`.
+Constraints that cause type errors or silent breakage:
 
-Verify with `pnpm check-types && pnpm lint && pnpm build` — all three are in
-CI's `web` job. The build is the real check: a missing `content` glob or a
-wrong CSS import order compiles fine and renders unstyled.
+- **`Box` takes no `className`** — use its props (`p`, `gap`, `bg`, `rounded`,
+  `shadow`, `w`, `h`, `display`, `direction`, `align`, `justify`, `overflow`).
+- **Only `tatva-*` tokens**, never raw Tailwind (`p-4`, `text-gray-500`).
+  Spacing is a 2px base (`p={8}` = 16px); three tiers only — `gap={2}` within
+  one thing, `gap={10}` between fields, `gap={12}` between regions. Spacing is
+  the parent's `gap`, never a child's margin.
+- **Icon names are a closed set.** Never guess; read `iconNames`.
+- `Text` uses `variant` + `tone`, not `size`/`color`.
+
+`pnpm check-types && pnpm lint && pnpm build` — all three run in CI's `web`
+job. The build is the real check: a wrong `content` glob or CSS order compiles
+fine and renders unstyled.
+
+## Keeping this file true
+
+Update it when you add a real surface or dependency (the "what exists" list),
+change any of the wires, or bump the tatva version — component and prop
+claims are version-specific, so re-verify them with the commands above.
