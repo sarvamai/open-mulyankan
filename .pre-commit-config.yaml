@@ -70,6 +70,18 @@ repos:
       - id: trivy-scan
         args: ['--severity', 'HIGH,CRITICAL', '--scanners', 'vuln,secret', '--skip-db-update']
 
+  # --- Review prompt: the AGENTS.md headings it slices are still there ---
+  # Cheap and offline; guards against a renamed heading silently thinning the
+  # automated review. See .github/review/scripts/check-cheat-sheet.js.
+  - repo: local
+    hooks:
+      - id: review-cheat-sheet
+        name: Review cheat sheet resolves
+        entry: node .github/review/scripts/check-cheat-sheet.js
+        language: system
+        pass_filenames: false
+        files: '^(AGENTS\.md|apps/web/AGENTS\.md|\.github/review/scripts/lib/cheat-sheet\.js)$'
+
   # --- Python: lint and format (platform/core, platform/spi) ---
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.6.9

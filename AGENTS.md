@@ -63,6 +63,16 @@ a green PR proves nothing about them. `Dockerfile` is likewise a placeholder.
 pre-existing `platform/` code, so check `git stash`-clean output before
 blaming your change.
 
+Separately, commenting `/review` on a PR runs the `sarvam-code` reviewer
+(`.github/workflows/pr-review.yml`, prompt and plumbing in `.github/review/`).
+It is a reviewer, not a gate — its `Automated Code Review` status is not
+required. Its prompt inlines the invariants above by lifting the
+`## Invariants` section from this file and two sections from
+`apps/web/AGENTS.md`, matched by heading text in
+`.github/review/scripts/lib/cheat-sheet.js`: if you rename one of those
+headings, update that file in the same PR or the reviewer silently falls back
+to a shorter summary.
+
 ## Conventions
 
 - Decisions become ADRs in `docs/adr/`. Amend in place with a dated note; see

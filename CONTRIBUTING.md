@@ -31,6 +31,32 @@ just as useful to a new human contributor.
 3. Keep commits focused; the PR description states what changed and why.
 4. Sign off your commits (`git commit -s`) — the Developer Certificate of Origin applies.
 
+## Automated code review
+
+Comment `/review` on a pull request and a reviewer runs the PR diff against this
+repo's architectural invariants, then posts a summary review. It is **not** a gate:
+it sets an `Automated Code Review` commit status that goes red on a critical
+finding, but branch protection requires only `ci`. A model does not block a merge.
+
+- What it is told to look for: `.github/review/prompt.md` — content leaks into
+  logs, audit events or URLs; a trusted client; a state change split from its
+  audit event; a seal path; AI or non-determinism on a core path.
+- The invariants themselves are lifted straight out of the `AGENTS.md` files, so
+  updating one there updates the reviewer.
+- Findings you resolve, or reply to, are recorded in a hidden ledger comment and
+  are not raised again on a re-review.
+- Re-run it any time; each run covers the whole diff and supersedes the last.
+
+Only owners, organisation members and collaborators can trigger it — on a public
+repo an open trigger would let a passer-by spend the API key. It reads
+`SARVAM_API_KEY` from a **repository** secret, so rotation is done here rather
+than org-wide, and a leak costs this repo's key only. A fork PR is reviewed too, but
+its tree is only ever read: the review scripts are re-fetched from the base repo
+and no install, build or test step runs, so fork code never executes next to the
+key. Draft PRs are skipped.
+
+If findings look truncated, the run timed out — comment `/review` again.
+
 ## Security checks
 
 Every PR is gated on the `ci` context, which aggregates:
@@ -42,9 +68,10 @@ Every PR is gated on the `ci` context, which aggregates:
 - **`trivy`** — dependency CVEs, secrets and misconfiguration.
 - **`web`** / **`build-and-test`** — lint, types, build.
 
-None of these needs a credential. If a future job does, it reads an **organisation**
-secret — no repository-level secrets here, so one rotation covers every repo and a fork
-never sees a value.
+None of these needs a credential. The one job that does is the `/review` reviewer
+above, which reads the repository secret `SARVAM_API_KEY`. It is not part of `ci`, so
+the gate itself stays credential-free and a fork PR's own workflow run never has a
+secret in scope.
 
 Draft PRs skip these jobs; marking a PR ready for review triggers them. Run all three
 scans locally before pushing:
