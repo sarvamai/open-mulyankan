@@ -1,0 +1,330 @@
+# Automated code review, on demand.
+#
+# Comment `/review` on a pull request and the `sarvam-code` CLI reviews the PR
+# diff against this repo's architectural invariants, then posts a summary review
+# and a commit status. The prompt and the diff plumbing live in `.github/review/`;
+# see `.github/review/prompt.md` for what the reviewer is told to look for.
+#
+# This is a *reviewer*, not a gate: the `ci` job in ci.yml is what branch
+# protection requires. The `Automated Code Review` status it sets goes red on a
+# critical finding to make one visible, but is deliberately not a required check
+# — a model must not be able to block a merge on its own.
+#
+# Requires the repository secret `SARVAM_API_KEY`. Without it the CLI login step
+# fails and the run reports a failed review; nothing else in CI is affected — no
+# job in the `ci` gate needs a credential.
+#
+# Two things make it safe to run this on a *public* repository:
+#
+#  1. `issue_comment` runs in the context of the base repo with a write-scoped
+#     token, so the trigger is gated on the commenter's association below —
+#     otherwise any passer-by could spend the API key. GitHub always runs an
+#     `issue_comment` workflow from the *default branch*, so no PR branch can
+#     edit this file to lift that gate or echo the key.
+#  2. On a fork PR the head tree is untrusted code. It is only ever *read*: the
+#     review scripts are re-checked-out from the workflow commit, no dependency
+#     install or build runs, and the agent itself runs `sandbox_mode=read-only`.
+#     Do not add an install, build or test step to this workflow.
+
+name: 'PR: Automated Code Review'
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+
+jobs:
+  review:
+    # `author_association` is the guard: OWNER/MEMBER/COLLABORATOR only. A
+    # first-time or drive-by commenter on this public repo cannot trigger a run.
+    if: >-
+      github.event.issue.pull_request &&
+      contains(github.event.comment.body, '/review') &&
+      !github.event.issue.pull_request.merged_at &&
+      contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)
+    name: 'sarvam-code review'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      pull-requests: write # post the review and the progress comment
+      statuses: write # set the Automated Code Review commit status
+    # One review per PR; a second `/review` supersedes a running one.
+    concurrency:
+      group: pr-review-${{ github.event.issue.number }}
+      cancel-in-progress: true
+    env:
+      # Repository variables, so the model can be changed without a commit.
+      REVIEW_MODEL: ${{ vars.REVIEW_MODEL || 'glm-5.3' }}
+      REVIEW_REASONING_EFFORT: ${{ vars.REVIEW_REASONING_EFFORT || 'high' }}
+      REVIEW_TIMEOUT_SEC: ${{ vars.REVIEW_TIMEOUT_SEC || '1800' }}
+    steps:
+      # The comment event carries no PR detail beyond the number, so everything
+      # downstream — head sha, base ref, fork or not — is read here.
+      - name: Fetch PR metadata
+        id: pr
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const pull_number = context.issue.number;
+            const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number });
+            if (pr.draft) {
+              core.info('PR is a draft — skipping review.');
+              core.setOutput('skip', 'true');
+              return;
+            }
+            core.setOutput('skip', 'false');
+            core.setOutput('head_sha', pr.head.sha);
+            core.setOutput('base_ref', pr.base.ref);
+            core.setOutput('head_ref', pr.head.ref);
+            // Fork PRs need the head repo by name; `head_ref` alone does not
+            // exist in the base repo, and checkout would fail on it.
+            core.setOutput('head_repo', pr.head.repo.full_name);
+            core.setOutput('pull_number', String(pull_number));
+            core.setOutput('pr_body', (pr.body || '').slice(0, 4000));
+
+      - name: Post progress indicator
+        if: steps.pr.outputs.skip != 'true'
+        id: progress
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const pull_number = context.issue.number;
+            const sha = '${{ steps.pr.outputs.head_sha }}';
+            const runUrl = `${process.env.GITHUB_SERVER_URL}/${owner}/${repo}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+
+            await github.rest.reactions.createForIssueComment({
+              owner, repo,
+              comment_id: context.payload.comment.id,
+              content: 'eyes',
+            });
+
+            const { data: comment } = await github.rest.issues.createComment({
+              owner, repo, issue_number: pull_number,
+              body: `⏳ **Code review in progress...**\n\nTriggered by @${context.actor}. [View workflow run](${runUrl})`,
+            });
+            core.setOutput('comment_id', String(comment.id));
+
+            await github.rest.repos.createCommitStatus({
+              owner, repo, sha,
+              state: 'pending',
+              context: 'Automated Code Review',
+              description: 'Review in progress...',
+              target_url: runUrl,
+            });
+
+      # Untrusted on a fork PR — read only. Nothing from this tree is executed.
+      - name: Checkout PR head
+        if: steps.pr.outputs.skip != 'true'
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: ${{ steps.pr.outputs.head_repo }}
+          ref: ${{ steps.pr.outputs.head_sha }}
+          # Full history: the diff below needs the merge base with the base ref.
+          fetch-depth: 0
+          persist-credentials: false
+
+      # The scripts that run must come from the *base* repo at the workflow
+      # commit, never from the PR head — otherwise a fork PR could rewrite the
+      # reviewer that judges it, or exfiltrate the API key.
+      - name: Checkout review scripts from the workflow commit
+        if: steps.pr.outputs.skip != 'true'
+        env:
+          BASE_REPO_URL: ${{ github.server_url }}/${{ github.repository }}.git
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --depth=1 "${BASE_REPO_URL}" "${{ github.sha }}"
+          git checkout FETCH_HEAD -- .github/review
+
+      # The base ref lives in the base repo, which is a different remote on a
+      # fork PR. prepare-diff.js diffs against `origin/<base_ref>`, so fetch it
+      # under exactly that name.
+      - name: Fetch the base ref
+        if: steps.pr.outputs.skip != 'true'
+        env:
+          BASE_REPO_URL: ${{ github.server_url }}/${{ github.repository }}.git
+          BASE_REF: ${{ steps.pr.outputs.base_ref }}
+        run: |
+          set -euo pipefail
+          git remote set-url origin "${BASE_REPO_URL}"
+          git fetch --no-tags origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+
+      - name: Set up Node.js
+        if: steps.pr.outputs.skip != 'true'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+
+      # Drops lockfiles and generated files, then sizes the PR into a tier that
+      # decides prompt prefetching and the review timeout.
+      - name: Generate, filter and tier the diff
+        if: steps.pr.outputs.skip != 'true'
+        id: diff
+        env:
+          BASE_REF: ${{ steps.pr.outputs.base_ref }}
+        run: node .github/review/scripts/prepare-diff.js
+
+      # Findings a human has resolved or replied to are recorded in a hidden
+      # ledger comment, so a re-review does not raise them again.
+      - name: Sync resolved ledger
+        if: steps.diff.outputs.skip != 'true'
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        with:
+          script: |
+            const fs = require('fs');
+            const { syncResolvedLedger } = require('./.github/review/scripts/lib/ledger');
+            const resolved = await syncResolvedLedger(github, context);
+            fs.writeFileSync('/tmp/resolved-ledger.json', JSON.stringify(resolved));
+
+      - name: Install sarvam-code CLI
+        if: steps.diff.outputs.skip != 'true'
+        env:
+          SARVAM_API_KEY: ${{ secrets.SARVAM_API_KEY }}
+        run: |
+          set -euo pipefail
+          if ! command -v sarvam-code &>/dev/null && [ ! -x "$HOME/.local/bin/sarvam-code" ]; then
+            curl -fsSL https://code.sarvam.ai/install.sh -o /tmp/sarvam-code-install.sh
+            sh /tmp/sarvam-code-install.sh
+            rm -f /tmp/sarvam-code-install.sh
+          fi
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          export PATH="$HOME/.local/bin:$PATH"
+          # Piped from printenv so the key never appears in a process argument.
+          printenv SARVAM_API_KEY | sarvam-code login --with-api-key
+          sarvam-code --version
+
+      - name: Build review prompt
+        if: steps.diff.outputs.skip != 'true'
+        env:
+          PR_TITLE: ${{ github.event.issue.title }}
+          PR_NUMBER: ${{ steps.pr.outputs.pull_number }}
+          PR_BODY: ${{ steps.pr.outputs.pr_body }}
+          TIER: ${{ steps.diff.outputs.tier }}
+          BASE_REF: ${{ steps.pr.outputs.base_ref }}
+        run: node .github/review/scripts/build-review-prompt.js
+
+      - name: Run the review
+        if: steps.diff.outputs.skip != 'true'
+        env:
+          SARVAM_API_KEY: ${{ secrets.SARVAM_API_KEY }}
+          TIER: ${{ steps.diff.outputs.tier }}
+          BASE_REF: ${{ steps.pr.outputs.base_ref }}
+          PR_TITLE: ${{ github.event.issue.title }}
+        run: |
+          chmod +x .github/review/scripts/run-native-review.sh
+          .github/review/scripts/run-native-review.sh
+
+      - name: Parse review output
+        if: steps.diff.outputs.skip != 'true'
+        id: parse
+        env:
+          TIER: ${{ steps.diff.outputs.tier }}
+        run: node .github/review/scripts/parse-native-review.js
+
+      # Only on failure, and only the review's own artefacts — the raw model
+      # output may quote the diff, so these are not uploaded on a green run.
+      - name: Upload review debug artefacts
+        if: failure() && steps.diff.outputs.skip != 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: review-debug-${{ github.run_id }}
+          path: |
+            /tmp/native-review.txt
+            /tmp/native-review.log
+            /tmp/review-prompt.txt
+            /tmp/review-parsed.json
+            /tmp/review-metrics.json
+          if-no-files-found: warn
+
+      - name: Log review metrics
+        if: steps.diff.outputs.skip != 'true'
+        run: |
+          if [ -f /tmp/review-metrics.json ]; then
+            echo "## Review metrics"
+            cat /tmp/review-metrics.json
+          fi
+
+      - name: Post PR review summary
+        if: steps.diff.outputs.skip != 'true'
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        with:
+          script: |
+            const fs = require('fs');
+            const { postSummaryReview } = require('./.github/review/scripts/post-review');
+            const parsed = JSON.parse(fs.readFileSync('/tmp/review-parsed.json', 'utf8'));
+            const metrics = (() => {
+              try { return JSON.parse(fs.readFileSync('/tmp/review-metrics.json', 'utf8')); }
+              catch (e) { return null; }
+            })();
+
+            await postSummaryReview(github, context, {
+              parsed,
+              commitId: '${{ steps.pr.outputs.head_sha }}',
+              tier: '${{ steps.diff.outputs.tier }}',
+              model: process.env.REVIEW_MODEL,
+              metrics,
+              currentProgressId: parseInt('${{ steps.progress.outputs.comment_id }}', 10) || 0,
+            });
+
+      - name: Update progress and status (success)
+        if: steps.pr.outputs.skip != 'true' && success()
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const sha = '${{ steps.pr.outputs.head_sha }}';
+            const commentId = parseInt('${{ steps.progress.outputs.comment_id }}', 10);
+            const runUrl = `${process.env.GITHUB_SERVER_URL}/${owner}/${repo}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+            const skippedReview = '${{ steps.diff.outputs.skip }}' === 'true';
+            const hasCritical = '${{ steps.parse.outputs.has_critical }}' === 'true';
+            const decision = '${{ steps.parse.outputs.decision }}' || 'n/a';
+
+            await github.rest.reactions.createForIssueComment({
+              owner, repo, comment_id: context.payload.comment.id, content: 'rocket',
+            });
+
+            const doneBody = skippedReview
+              ? `ℹ️ **No reviewable changes** (only ignored files in the diff). [View workflow run](${runUrl})`
+              : `✅ **Code review complete.** Decision: ${decision}. [View workflow run](${runUrl})`;
+            if (commentId) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: commentId, body: doneBody });
+            }
+
+            await github.rest.repos.createCommitStatus({
+              owner, repo, sha,
+              state: hasCritical ? 'failure' : 'success',
+              context: 'Automated Code Review',
+              description: skippedReview
+                ? 'No reviewable changes'
+                : (hasCritical ? 'Critical issues found — see review' : 'Review complete'),
+              target_url: runUrl,
+            });
+
+      - name: Update progress and status (failure)
+        if: steps.pr.outputs.skip != 'true' && failure()
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const sha = '${{ steps.pr.outputs.head_sha }}';
+            const commentId = parseInt('${{ steps.progress.outputs.comment_id }}', 10);
+            const runUrl = `${process.env.GITHUB_SERVER_URL}/${owner}/${repo}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+
+            if (commentId) {
+              await github.rest.issues.updateComment({
+                owner, repo, comment_id: commentId,
+                body: `❌ **Code review failed.** [View workflow run](${runUrl})`,
+              });
+            }
+
+            await github.rest.repos.createCommitStatus({
+              owner, repo, sha,
+              state: 'failure',
+              context: 'Automated Code Review',
+              description: 'Review failed — check workflow logs',
+              target_url: runUrl,
+            });
