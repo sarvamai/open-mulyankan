@@ -14,6 +14,7 @@ Read the root `AGENTS.md` first.
 | `adr/NNNN-<slug>.md` | One accepted decision each, numbered sequentially. |
 | `provider-contracts.md` | The working contract for provider authors: lifecycle, rules, SPI catalogue. |
 | `traceability.md` | Requirement ID → component → milestone, plus the standing definition-of-done checks. |
+| `observability.md` | Working contract for observability: decisions table, what is instrumented, the content-free guard, configuration, local stack, infra guidance. ADR-0009 is the decision. |
 
 These documents describe the system through M6 and are written in the present
 tense, so they name paths that do not exist yet (`providers/`, `db/`,
