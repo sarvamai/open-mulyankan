@@ -78,7 +78,13 @@ blaming your change.
 - **Which app serves which role.** `docs/architecture.md` maps all role
   surfaces to `apps/web`; ADR-0008 gives content roles a separate signed thin
   client meeting the server at `contracts/`. Neither exists.
-- Pilot languages are deliberately unnamed (ADR-0006).
+- Pilot languages are deliberately unnamed (ADR-0006) — still pending for the
+  platform. `apps/web` now carries a working list for its question language
+  field (`apps/web/src/components/question-bank/languages.ts`: the Eighth
+  Schedule's twenty-two plus English, at the repo owner's direction). It is one
+  array in the client, standing in for `cycle.required_languages` until there
+  is an API to read; the ADR's own status is unchanged, and nothing in
+  `platform/` names a language.
 - Canonicalization is `draft-v0.1`; `docs/canonicalization.md` is unwritten.
   Changing the byte format changes every audit hash.
 
