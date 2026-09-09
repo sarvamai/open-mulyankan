@@ -46,6 +46,7 @@ try {
     .filter(Boolean);
 } catch (e) {
   console.error('git diff (full) failed:', e.message);
+  process.exit(1);
 }
 const keptFull = fullFiles.filter((f) => !isNoise(f) && !isGenerated(f));
 fs.writeFileSync('/tmp/full-file-list.json', JSON.stringify(keptFull));
@@ -58,6 +59,7 @@ try {
     .filter(Boolean);
 } catch (e) {
   console.error('git diff (review) failed:', e.message);
+  process.exit(1);
 }
 
 const kept = files.filter((f) => !isNoise(f) && !isGenerated(f));
