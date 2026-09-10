@@ -137,7 +137,10 @@ jobs:
           BASE_REPO_URL: ${{ github.server_url }}/${{ github.repository }}.git
         run: |
           set -euo pipefail
-          git fetch --no-tags --depth=1 "${BASE_REPO_URL}" "${{ github.sha }}"
+          # No --depth: a shallow fetch grafts the workflow commit (the
+          # default branch's tip) as parentless, and the three-dot diff
+          # against the base ref then finds no merge base.
+          git fetch --no-tags "${BASE_REPO_URL}" "${{ github.sha }}"
           git checkout FETCH_HEAD -- .github/review
 
       # The base ref lives in the base repo, which is a different remote on a
