@@ -80,7 +80,7 @@ export function PageShell({ children, ...headerProps }: PageShellProps) {
             className="min-h-0 min-w-0 flex-1 overflow-y-auto scrollbar-hide"
           >
             <div
-              className={`sticky top-0 z-30 border-b bg-tatva-surface-secondary transition-colors duration-200 ${
+              className={`sticky top-0 z-30 border-b bg-tatva-surface-secondary transition-colors duration-tatva-fast ${
                 hasScrolled ? 'border-tatva-divider-primary' : 'border-transparent'
               }`}
             >

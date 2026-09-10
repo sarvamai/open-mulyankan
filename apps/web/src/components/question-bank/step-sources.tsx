@@ -165,7 +165,7 @@ export function StepSources({
             </Box>
             {/* Capped and scrolling: the mock list is 22 books and a real one
              * is longer, and the dialog's own height is the budget. */}
-            <div className="max-h-64 overflow-y-auto">
+            <div className="max-h-tatva-124 overflow-y-auto">
               <Box display="flex" direction="column" gap={4}>
                 {books.map((book) => (
                   <Checkbox
