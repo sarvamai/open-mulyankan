@@ -1,0 +1,7 @@
+# pnpm 11 reads project settings from this file, not from the "pnpm" field in
+# package.json. These overrides force patched versions of two packages that
+# reach the client through @sarvam/tatva's dependency tree — the same fix
+# apps/web applies (see its package.json history and the Trivy gate).
+overrides:
+  jsondiffpatch: 0.7.6
+  linkify-it: 5.0.2
