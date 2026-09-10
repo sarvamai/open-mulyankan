@@ -11,3 +11,10 @@ packages:
 overrides:
   jsondiffpatch: 0.7.6
   linkify-it: 5.0.2
+# Supply-chain hardening required by the Semgrep gate (same posture as the
+# repo-wide pinning): block transitive deps from untrusted sources, let newly
+# published versions age for a week before install, and refuse downgrades of
+# security settings.
+blockExoticSubdeps: true
+minimumReleaseAge: 10080
+trustPolicy: no-downgrade
