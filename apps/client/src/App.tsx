@@ -1,93 +1,70 @@
 import { useState } from "react";
-import { Button, Input } from "@sarvam/tatva";
+import { Button, Input, Text } from "@sarvam/tatva";
+
+import { AuthDivider } from "./auth/AuthDivider";
+import { AuthHeader } from "./auth/AuthHeader";
+import { AuthRegistrationLink } from "./auth/AuthRegistrationLink";
+import { AuthShellSplit } from "./auth/AuthShellSplit";
+import { SocialButtons } from "./auth/SocialButtons";
 
 /**
- * The thin client's first screen. Per ADR-0008 the client can do exactly four
- * things — authenticate, receive one task, act, report — and this is the first
- * of them. It is a placeholder: the OIDC flow through the identity SPI
- * (ADR-0004) arrives with the contracts/ slice, so signing in does nothing yet
- * beyond saying so.
+ * The thin client's sign-in screen, ported from mulyankan-frontend's login
+ * surface. Per ADR-0008 the client can do exactly four things — authenticate,
+ * receive one task, act, report — and this is the first of them. Every control
+ * is a placeholder until the contracts/ slice lands: the OIDC flow runs
+ * through the identity SPI (ADR-0004) and is not wired to this screen yet.
  */
 function App() {
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [notice, setNotice] = useState("");
 
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: "rgb(var(--tatva-surface-primary))",
-        color: "rgb(var(--tatva-content-primary))",
-        fontFamily: "var(--tatva-family-matter)",
-      }}
-    >
-      <div
-        style={{
-          width: "22rem",
-          padding: "2rem",
-          borderRadius: "0.75rem",
-          backgroundColor: "rgb(var(--tatva-surface-secondary))",
-          border: "1px solid rgb(var(--tatva-border-primary))",
-          display: "flex",
-          flexDirection: "column",
-          gap: "1.25rem",
+    <AuthShellSplit>
+      <AuthHeader />
+
+      <SocialButtons
+        onProvider={(provider) => setNotice(`${provider} sign-in arrives with the contracts slice.`)}
+      />
+
+      <AuthDivider text="OR" />
+
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          setNotice(
+            "Authentication arrives with the contracts slice — the server is not wired to this screen yet.",
+          );
         }}
       >
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-          <h1 style={{ fontSize: "1.25rem", fontWeight: 600, margin: 0 }}>Mulyankan</h1>
-          <p
-            style={{
-              margin: 0,
-              fontSize: "0.875rem",
-              color: "rgb(var(--tatva-content-secondary))",
-            }}
-          >
-            The content-authoring thin client. Sign in to receive your assigned task.
-          </p>
-        </div>
-
-        <form
-          style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}
-          onSubmit={(event) => {
-            event.preventDefault();
-            setNotice(
-              "Authentication arrives with the contracts slice — the server is not wired to this screen yet.",
-            );
-          }}
-        >
+        <div className="mb-4 flex flex-col">
           <Input
-            label="Email"
+            name="identifier"
             type="email"
+            placeholder="e.g., name@company.com"
             value={email}
             onChange={(event) => setEmail(event.currentTarget.value)}
-            placeholder="you@example.in"
+            size="md"
+            autoComplete="username"
           />
-          <Input
-            label="Password"
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.currentTarget.value)}
-          />
-          <Button type="submit">Sign in</Button>
-        </form>
+        </div>
 
-        {notice ? (
-          <p
-            style={{
-              margin: 0,
-              fontSize: "0.75rem",
-              color: "rgb(var(--tatva-content-secondary))",
-            }}
-          >
+        <Button type="submit" variant="primary" size="lg" width="full" disabled={!email.trim()}>
+          Continue
+        </Button>
+      </form>
+
+      <AuthRegistrationLink
+        onNavigateToRegistration={() => setNotice("Registration arrives with the contracts slice.")}
+      />
+
+      {notice ? (
+        <div className="mt-tatva-6 text-center">
+          <Text variant="body-sm" tone="tertiary" as="p" textAlign="center">
             {notice}
-          </p>
-        ) : null}
-      </div>
-    </main>
+          </Text>
+        </div>
+      ) : null}
+    </AuthShellSplit>
   );
 }
 
