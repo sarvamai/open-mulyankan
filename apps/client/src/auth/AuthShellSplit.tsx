@@ -1,12 +1,13 @@
 import type { ReactNode } from "react";
 
+import StitchAsset from "../stitch/components/StitchAsset";
+import { PRODUCT_STITCH } from "../stitch/product-registry";
 import { AuthPrivacyFooter } from "./AuthPrivacyFooter";
 
 /**
- * Split auth shell — the stitch cloth fills the left half (md+), the form sits
- * on the right. Ported from mulyankan-frontend's AuthShellSplit; the live
- * stitch asset is replaced by a static capture of the same cloth until the
- * stitch system is shared between the apps.
+ * Split auth shell — the interactive stitch cloth fills the left half (md+),
+ * the form sits on the right. Ported from mulyankan-frontend's AuthShellSplit
+ * with the same registry-driven stitch asset and hover physics.
  */
 export function AuthShellSplit({ children }: { children: ReactNode }) {
   return (
@@ -14,10 +15,15 @@ export function AuthShellSplit({ children }: { children: ReactNode }) {
       <div className="m-tatva-4 flex min-h-0 flex-1 overflow-hidden rounded-tatva-sm bg-tatva-surface-secondary">
         <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-2">
           <div className="relative hidden min-h-0 overflow-hidden md:block" aria-hidden>
-            <img
-              src="/shared/auth-cloth.jpg"
-              alt=""
-              className="absolute inset-0 h-full w-full object-cover"
+            <StitchAsset
+              id={PRODUCT_STITCH.authLogin}
+              width={480}
+              height={640}
+              fill
+              physics
+              animate={false}
+              physicsScale={3}
+              className="absolute inset-0"
             />
           </div>
 
