@@ -71,7 +71,7 @@ them, not the whole spec.
 | D10 | `client.address` on spans and logs | Keep / drop / hash | Keep. It is operational security signal (ARC-07 posture) and not question content | Settled 2026-09-09: traceability takes precedence; the data is handled by a regulated entity |
 | D11 | SQL text on database spans (from M1) | Keep parameterised statement / drop | Keep only if the instrumentation is configured never to inline parameters; otherwise drop. Verify against the M1 driver choice | Open until M1 |
 | D12 | Trace id exposed to callers | `Server-Timing: traceparent` response header / nothing | Add it on FastAPI responses. Lets an operator copy the trace id from browser tools without any vendor UI. The browser-to-server page-load link uses a `<meta name="traceparent">` tag instead (§4.8), which is what the document-load instrumentation reads | Recommended |
-| D13 | Browser-side instrumentation | Now / after the role-surface question is settled | Now. Traces must start in the browser to be followed end to end, and oversight roles use this web app in a browser whichever way the role-surface question lands, so the work is not wasted. Content roles' thin client (ADR-0008) gets its own instrumentation when it exists | Settled 2026-09-09 |
+| D13 | Browser-side instrumentation | Now / after the role-surface question is settled | Now. Traces must start in the browser to be followed end to end, and oversight roles use this web app in a browser whichever way the role-surface question lands, so the work is not wasted. Content roles' thin client (ADR-0008; a Tauri scaffold under `apps/client/` per ADR-0010) gets its own instrumentation once it speaks to the server through `contracts/` | Settled 2026-09-09 |
 | D14 | CI Python job | Prerequisite PR / part of the first slice | Separate prerequisite PR. The sentinel test in §7 is worthless if it cannot fail a PR, and `build-and-test` is still an `echo` | Recommended |
 | D15 | Where the local stack lives | New `deploy/dev/` / `platform/core/dev/` / repo root `compose.yaml` | `deploy/dev/`. It will hold the production Collector config later; the root `AGENTS.md` gains the path in the same PR | Open |
 | D16 | How browser spans reach the Collector | Browser posts OTLP to a Next.js route handler that forwards to the Collector / browser posts to the Collector directly with CORS | Route handler. The browser then talks only to the web app's origin, which matches the egress posture (ARC-07) and keeps the Collector off the public surface. The handler forwards bytes unchanged and applies the same size and rate limits as any other route | Recommended |
@@ -479,7 +479,7 @@ auditor reads; keep the allowlist in one place with a comment per entry.
   `traceparent` meta tag in the root layout, and the `web-vitals`
   dependency.
 - `deploy/dev/` as in §6.2.
-- ADR-0009 (adopting OpenTelemetry as the telemetry SPI) and the dated
+- ADR-0011 (adopting OpenTelemetry as the telemetry SPI) and the dated
   amendment to ADR-0003 exist as of 2026-09-09. The remaining rows of §2 are
   working-contract decisions recorded here; any that turns out to change an
   architectural commitment gets its own ADR.
@@ -493,8 +493,10 @@ auditor reads; keep the allowlist in one place with a comment per entry.
 ## 9. Deferred
 
 - A project-specific `telemetry` Protocol. Revisit only if a sink appears that cannot be reached over OTLP (D3).
-- Instrumentation of the ADR-0008 thin client for content roles, once it
-  exists. It will follow §4.8 with its own service name.
+- Instrumentation of the ADR-0008 thin client for content roles. Its Tauri
+  scaffold exists (`apps/client/`, ADR-0010) but serves no role until
+  `contracts/` is authored; it will follow §4.8 with its own service name,
+  and its Rust shell reports through the same Collector.
 - Tail sampling, alert rules and dashboards committed to the repository;
   a dashboard is useful locally but must never become a dependency.
 - Profiling (OTel profiles signal) once the SDKs are stable.

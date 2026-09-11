@@ -2,7 +2,7 @@
 
 - Status: Accepted. Amended 2026-09-09: the `telemetry` row is satisfied by
   adopting OpenTelemetry rather than by a project SPI — see "Telemetry
-  (amended 2026-09-09)" below and ADR-0009.
+  (amended 2026-09-09)" below and ADR-0011.
 - Date: 2026-09-07
 
 ## Context
@@ -44,7 +44,7 @@ Implementations of versioned service-provider interfaces (SPIs) defined in
 | render | reference rendering contract | preview, review, accessibility | yes |
 | gateway | model proposals with provenance (Layer 2) | authoring resources only | no (proposals only) |
 | notify | signed outbound notifications to downstream | lifecycle events | yes |
-| telemetry | OTLP sink for metrics, traces, logs (see amendment: no project SPI; ADR-0009) | observability | n/a |
+| telemetry | OTLP sink for metrics, traces, logs (see amendment: no project SPI; ADR-0011) | observability | n/a |
 | export | portable export profile (QTI 3.0 candidate) | readiness handoff | yes |
 
 ### Telemetry (amended 2026-09-09)
@@ -52,7 +52,7 @@ Implementations of versioned service-provider interfaces (SPIs) defined in
 The `telemetry` row is not implemented as a `Protocol` in `mulyankan-spi`.
 OpenTelemetry already supplies the interface (its API and OTLP), the binding
 (its environment variables) and the conformance target (its specification),
-so the project adopts it directly; ADR-0009 records the decision and the
+so the project adopts it directly; ADR-0011 records the decision and the
 mapping. Two rules below apply differently at that seam: rule 1's "refused at
 call time" does not hold (an unconfigured sink drops signals and the request
 still serves), and rule 4's conformance suite is replaced by OTel compliance

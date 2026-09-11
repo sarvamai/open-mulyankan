@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python 3.12, FastAPI, `opentelemetry-sdk` 1.44 with contrib instrumentations 0.65b0; Next.js 16.2 on Node 20, `@opentelemetry/sdk-node` 0.222, `@opentelemetry/sdk-trace-web` 2.11, `web-vitals` 6, pino 10; OpenTelemetry Collector contrib 0.160, `grafana/otel-lgtm` 0.32.1; Docker Compose; vitest 5 and Playwright 1.63 for the web tests.
 
-**Spec:** `docs/observability.md` (working contract) and `docs/adr/0009-opentelemetry-as-telemetry-spi.md` (the decision). The plan argues from the spec; executors read both.
+**Spec:** `docs/observability.md` (working contract) and `docs/adr/0011-opentelemetry-as-telemetry-spi.md` (the decision). The plan argues from the spec; executors read both.
 
 ## Global constraints
 
@@ -40,7 +40,7 @@ Slices 3, 4 and 5 depend on 2 only for the end-to-end check; each is independent
 ## File map
 
 ```
-.github/workflows/ci.yml                                   modify (slice 1, 5)
+.github/workflows/ci.yml                                   modify (slice 1, 4, 5)
 platform/core/pyproject.toml                               modify (2)
 platform/core/src/mulyankan_platform/observability/
   __init__.py                                              create (2) exports configure, register_providers
@@ -77,7 +77,7 @@ apps/web/AGENTS.md                                         modify (4, 5)
 ### Task 1: Replace the `build-and-test` placeholder
 
 **Files:**
-- Modify: `.github/workflows/ci.yml:178-194`
+- Modify: `.github/workflows/ci.yml:193-208`
 
 **Interfaces:**
 - Produces: a CI job named `build-and-test` that fails when `python -m pytest platform/spi platform/core -q` fails. The `ci` aggregate job already depends on it.
@@ -120,15 +120,13 @@ Temporarily add `assert False` to `platform/core/tests/test_healthz.py`, push to
 
 - [ ] **Step 4: Update the docs that call CI a placeholder**
 
-In `AGENTS.md` (root), replace the paragraph beginning "**CI runs the security stage and the `web` job only.**" with:
+In `AGENTS.md` (root), in the paragraph beginning "**CI's gate is the aggregate `ci` job**", replace the two sentences from "`build-and-test` is still the template's `echo` placeholder" to "a green PR proves nothing about them." with:
 
 ```markdown
-**CI runs the security stage, the `web` job, and `build-and-test`, which
-runs the Python tests on 3.12.** `Dockerfile` is still a placeholder.
-`ruff` is unconfigured and unpinned (`>=0.6`); it reports findings in
-pre-existing `platform/` code and is not run in CI, so check `git stash`-clean
-output before blaming your change.
+`build-and-test` runs the Python test suite on 3.12.
 ```
+
+so the paragraph continues with "`Dockerfile` is likewise a placeholder." unchanged.
 
 In `CONTRIBUTING.md`, the "Security checks" list item `**web** / **build-and-test** — lint, types, build.` becomes:
 
@@ -171,7 +169,7 @@ dependencies = [
     "fastapi>=0.115",
     "uvicorn>=0.30",
     "pyyaml>=6.0",
-    # Observability (ADR-0009). Mandatory: the content-free guard is a
+    # Observability (ADR-0011). Mandatory: the content-free guard is a
     # security control. API/SDK track 1.x; contrib instrumentations track
     # the 0.x line that pairs with it.
     "opentelemetry-api>=1.44,<2",
@@ -235,7 +233,7 @@ Expected: FAIL. `create_app_from_mapping` does not call anything OTel yet, so th
 `platform/core/src/mulyankan_platform/observability/__init__.py`:
 
 ```python
-"""Observability: OpenTelemetry wiring for the core (ADR-0009, ASR02-OBS).
+"""Observability: OpenTelemetry wiring for the core (ADR-0011, ASR02-OBS).
 
 Everything the application knows about telemetry is here. It speaks the OTel
 API only; the sink is whatever `OTEL_EXPORTER_OTLP_ENDPOINT` names.
@@ -1315,7 +1313,7 @@ def register_providers(*, span_exporter=None, metric_reader=None, log_exporter=N
     # Stable HTTP conventions and the http.server.request.duration metric.
     os.environ.setdefault("OTEL_SEMCONV_STABILITY_OPT_IN", "http")
     # Resource.create() runs the env detector: OTEL_SERVICE_NAME and
-    # OTEL_RESOURCE_ATTRIBUTES are the descriptor (ADR-0009).
+    # OTEL_RESOURCE_ATTRIBUTES are the descriptor (ADR-0011).
     resource = Resource.create()
 
     tracer_provider = TracerProvider(resource=resource)
@@ -1573,7 +1571,7 @@ git commit -s -m "Wire the OTel SDK into core-api and prove it content-free"
 Add to "What is here", after the `core_api/main.py` bullet:
 
 ```markdown
-- `observability/` — OTel wiring (ADR-0009, `docs/observability.md`):
+- `observability/` — OTel wiring (ADR-0011, `docs/observability.md`):
   `setup.configure` is called from `build_app`; `guard.py` holds the
   attribute allowlist that keeps every signal content-free. Add an attribute
   only by adding it to the allowlist with a reason; the sentinel test
@@ -2299,7 +2297,7 @@ import { NodeSDK, logs, metrics, tracing } from '@opentelemetry/sdk-node';
 import { GuardedLogExporter, GuardedSpanExporter } from './observability/guard';
 
 // Service name, resource attributes and the endpoint come from the standard
-// OTEL_* variables (ADR-0009); nothing here names a backend.
+// OTEL_* variables (ADR-0011); nothing here names a backend.
 if (process.env.OTEL_SDK_DISABLED?.toLowerCase() !== 'true') {
   const sdk = new NodeSDK({
     spanProcessors: [new tracing.BatchSpanProcessor(new GuardedSpanExporter(new OTLPTraceExporter()))],
@@ -2807,6 +2805,6 @@ git commit -s -m "Prove one trace from the browser to core-api and no content in
 
 ## After the five slices
 
-- ADR-0009 status: flip from Proposed to Accepted with deciders and date once the team has reviewed slice 2 (the first PR that depends on it).
+- ADR-0011 status: flip from Proposed to Accepted with deciders and date once the team has reviewed slice 2 (the first PR that depends on it).
 - `docs/observability.md` §8 lists the same touch points; tick them as the slices land.
 - Open items the plan does not cover, by design: alert rules and dashboards (deferred until the deployment target is known), the M1 database instrumentations (`opentelemetry-instrumentation-sqlalchemy` and the driver's, added with the driver), D11 on SQL text, and the ADR-0008 thin client.

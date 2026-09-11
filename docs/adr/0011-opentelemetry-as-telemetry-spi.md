@@ -1,7 +1,11 @@
-# ADR-0009: OpenTelemetry is the telemetry SPI
+# ADR-0011: OpenTelemetry is the telemetry SPI
 
 - Status: Proposed
 - Date: 2026-09-09
+
+ADR-0009 is reserved for the `extraction` SPI on a parallel branch and
+ADR-0010 for the Tauri client; this record takes 0011 so numbering stays
+stable when all three land.
 
 ## Context
 

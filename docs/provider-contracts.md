@@ -50,7 +50,7 @@ providers:
 | export | `mulyankan_spi.export` | `conformance.export` | readiness handoff | M4+ |
 
 Telemetry is not in the catalogue: the project adopts OpenTelemetry as that
-SPI (ADR-0009), bound by the OTel environment variables rather than
+SPI (ADR-0011), bound by the OTel environment variables rather than
 `platform.yaml`; see `docs/observability.md`.
 
 M0 ships the `kms` SPI complete (interface, conformance suite, reference
