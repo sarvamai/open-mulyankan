@@ -2,7 +2,8 @@
 
 Layer 1 workflow core of a national exam content-authoring engine:
 author → review → accessibility → translate → system seal → ready.
-Python/FastAPI in `platform/`, Next.js in `apps/web`.
+Python/FastAPI in `platform/`, Next.js in `apps/web`, a Tauri thin
+client in `apps/client/`.
 
 ## The docs plan M6; the tree is at M0
 
@@ -87,7 +88,9 @@ to a shorter summary.
 
 - **Which app serves which role.** `docs/architecture.md` maps all role
   surfaces to `apps/web`; ADR-0008 gives content roles a separate signed thin
-  client meeting the server at `contracts/`. Neither exists.
+  client meeting the server at `contracts/`. The client's scaffold exists
+  (`apps/client/`, ADR-0010) but serves no role until `contracts/` is
+  authored; the question stays open until then.
 - Pilot languages are deliberately unnamed (ADR-0006) — still pending for the
   platform. `apps/web` now carries a working list for its question language
   field (`apps/web/src/components/question-bank/languages.ts`: the Eighth

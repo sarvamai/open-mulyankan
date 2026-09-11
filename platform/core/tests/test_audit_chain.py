@@ -1,5 +1,6 @@
 """Audit chain: verification, tamper detection, content-freedom (ASR01-EVD)."""
 
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 
 from mulyankan_platform.audit import (
@@ -78,3 +79,28 @@ def test_hashing_is_deterministic_and_unicode_stable() -> None:
     first = canonical_bytes(payload)
     second = canonical_bytes(dict(reversed(list(payload.items()))))
     assert first == second  # key order never changes the canonical form
+
+
+def test_asrevd02_concurrent_appends_keep_the_chain_verifiable() -> None:
+    """The core-api handlers are sync `def`, so appends really do race.
+
+    Without an atomic append, two writers read the same tail and mint two
+    events sharing a `seq` and a `prev_hash`. The log is append-only, so that
+    break is permanent — `verify` reports it forever and nothing can repair it.
+    """
+    log = AuditLog()
+    writers, per_writer = 8, 50
+
+    def write(worker: int) -> None:
+        for _ in range(per_writer):
+            log.append(actor=f"author-{worker}", action="draft.autosaved")
+
+    with ThreadPoolExecutor(max_workers=writers) as pool:
+        for future in [pool.submit(write, worker) for worker in range(writers)]:
+            future.result()
+
+    events = log.events
+    assert len(events) == writers * per_writer
+    assert [event.seq for event in events] == list(range(writers * per_writer))
+    assert len({event.prev_hash for event in events}) == len(events)
+    assert log.verify().ok
