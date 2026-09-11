@@ -70,7 +70,7 @@ them, not the whole spec.
 | D9 | Health-check spans | Trace `/healthz` / exclude | Exclude. The FastAPI exclusion mechanism drops both the span and the metric sample; accept losing `/healthz` from the duration histogram | Recommended |
 | D10 | `client.address` on spans and logs | Keep / drop / hash | Keep. It is operational security signal (ARC-07 posture) and not question content | Settled 2026-09-09: traceability takes precedence; the data is handled by a regulated entity |
 | D11 | SQL text on database spans (from M1) | Keep parameterised statement / drop | Keep only if the instrumentation is configured never to inline parameters; otherwise drop. Verify against the M1 driver choice | Open until M1 |
-| D12 | Trace id exposed to callers | `Server-Timing: traceparent` response header / nothing | Add it. Lets an operator copy the trace id from browser tools without any vendor UI | Recommended |
+| D12 | Trace id exposed to callers | `Server-Timing: traceparent` response header / nothing | Add it on FastAPI responses. Lets an operator copy the trace id from browser tools without any vendor UI. The browser-to-server page-load link uses a `<meta name="traceparent">` tag instead (§4.8), which is what the document-load instrumentation reads | Recommended |
 | D13 | Browser-side instrumentation | Now / after the role-surface question is settled | Now. Traces must start in the browser to be followed end to end, and oversight roles use this web app in a browser whichever way the role-surface question lands, so the work is not wasted. Content roles' thin client (ADR-0008) gets its own instrumentation when it exists | Settled 2026-09-09 |
 | D14 | CI Python job | Prerequisite PR / part of the first slice | Separate prerequisite PR. The sentinel test in §7 is worthless if it cannot fail a PR, and `build-and-test` is still an `echo` | Recommended |
 | D15 | Where the local stack lives | New `deploy/dev/` / `platform/core/dev/` / repo root `compose.yaml` | `deploy/dev/`. It will hold the production Collector config later; the root `AGENTS.md` gains the path in the same PR | Open |
@@ -95,7 +95,7 @@ ADR-0001 and arrives with the milestone that introduces the dependency.
 | Python | SQLAlchemy 2.0 | `opentelemetry-instrumentation-sqlalchemy` | DB client spans (see D11) | M1 |
 | Python | PostgreSQL driver | `-psycopg` or `-asyncpg`, whichever M1 picks | Driver-level spans | M1 |
 | Node | Next.js 16 server | Built-in framework spans once `instrumentation.ts` registers a provider; `@opentelemetry/sdk-node`, OTLP HTTP exporters | Route render, server actions, middleware, outgoing `fetch` with `traceparent` | Now |
-| Browser | The web app in the browser (RUM) | `@opentelemetry/sdk-trace-web` with `instrumentation-fetch`, `instrumentation-document-load` and `instrumentation-user-interaction`; `sdk-metrics` and `sdk-logs` with their OTLP HTTP exporters; `context-zone`; the `web-vitals` library (Apache-2.0) as the vitals source | Page-load and navigation spans linked to the server render via `Server-Timing`; a span per `fetch` to core-api with `traceparent` injected; click spans; web vitals as metrics; JavaScript errors as log records | Now (D13) |
+| Browser | The web app in the browser (RUM), started from Next.js's `instrumentation-client.ts` | `@opentelemetry/sdk-trace-web` with `instrumentation-fetch`, `instrumentation-document-load` and `instrumentation-user-interaction`; `sdk-metrics` and `sdk-logs` with their OTLP HTTP exporters; `context-zone`; the `web-vitals` library (Apache-2.0) as the vitals source | Page-load and navigation spans linked to the server render via `Server-Timing`; a span per `fetch` to core-api with `traceparent` injected; click spans; web vitals as metrics; JavaScript errors as log records | Now (D13) |
 
 Uvicorn's access log is disabled (`--no-access-log`): it prints the raw path
 and query string, which the request log in §4.3 replaces with the route
@@ -115,12 +115,15 @@ content-free.
 | `mulyankan.workflow.transitions` | counter | `from_state`, `to_state` | M1 |
 | `mulyankan.audit.durable.latency` | histogram (s), target ≤ 5 s | — | M1 |
 | `mulyankan.outbox.lag` | observable gauge (s) | — | M1 |
-| `mulyankan.web.vitals.lcp`, `.cls`, `.inp`, `.ttfb`, `.fcp` | histogram | `http.route` (the Next.js route pattern), `browser.mobile` | Now |
-| `mulyankan.web.errors` | counter | `exception.type`, `http.route` | Now |
+| `mulyankan.web.vitals.lcp`, `.cls`, `.inp`, `.ttfb`, `.fcp` | histogram | `url.path` (the pathname; content-free by DAT-03), `browser.mobile` | Now |
+| `mulyankan.web.errors` | counter | `exception.type`, `url.path` | Now |
 
 The vitals names are project-namespaced because the OTel semantic
 conventions for browser vitals are still experimental; they move to the
-standard names when those stabilise, with a dated note here.
+standard names when those stabilise, with a dated note here. The browser
+does not know the route pattern for a page, so browser signals carry the
+pathname; Next.js 16.3 exposes route patterns to the client hook, and the
+attribute switches to `http.route` when the app moves to that version.
 
 The non-functional targets in `architecture.md` (read ≤ 2 s, draft save
 ≤ 1.5 s, operator signal ≤ 3 s, durable audit ≤ 5 s, 99.5 % availability)
@@ -167,7 +170,8 @@ Allowed on spans:
 - Domain: `mulyankan.spi`, `mulyankan.provider.name`,
   `mulyankan.provider.version`, `mulyankan.audit.event_id`,
   `mulyankan.object_ref` (opaque ids only), `mulyankan.state.from`,
-  `mulyankan.state.to`.
+  `mulyankan.state.to`, `mulyankan.http.request.duration` (request log
+  only).
 - Database (M1): `db.system.name`, `db.operation.name`,
   `db.collection.name`; `db.query.text` per D11.
 
@@ -195,7 +199,7 @@ response header carrying `traceparent` (D12).
 
 Uvicorn's access log is turned off so this is the only per-request line.
 
-### 4.4 `logging.py` — structured logs
+### 4.4 `logs.py` — structured logs
 
 The framework is the standard library `logging` module (D19). The root
 logger is configured once: a JSON formatter to stdout (for `filelog`
@@ -234,8 +238,9 @@ interaction is visible, content-free. The registry test double in
 ### 4.6 Audit chain
 
 `AuditLog.append` records `mulyankan.audit.events` and
-`mulyankan.audit.append.duration`, and sets `mulyankan.audit.event_id` on
-the current span. The link runs from the span to the audit event id and
+`mulyankan.audit.append.duration`, and adds an `audit.appended` event to the
+current span carrying `mulyankan.audit.event_id` (an event rather than an
+attribute, because one request can append several). The link runs from the span to the audit event id and
 never the reverse: adding a trace id to an audit event would change its
 canonical bytes and therefore every hash (invariant 10,
 `CANONICAL_SCHEMA_VERSION`).
@@ -249,16 +254,24 @@ propagator. Next.js's built-in spans then cover route rendering, server
 actions and outgoing `fetch`, and the `traceparent` header reaches
 `platform/core`, so one page render and its API calls are one trace.
 Per the `apps/web` rule, no question content in `console.log` or any
-attribute. The Node side gets the same allowlist guard as Python, as a
-`SpanProcessor`, once the app makes its first API call.
+attribute. The Node side gets the same allowlist guard as Python, applied
+by wrappers around the OTLP exporters, in the same slice. The guard also drops every span whose
+route is the OTLP relay (§4.9): without that, each relayed batch would
+produce a span, which would be relayed, which would produce a span.
 
-### 4.8 `apps/web/src/otel-browser.ts` — browser tracing and RUM
+The root layout renders `<meta name="traceparent">` from the active server
+span. The browser's document-load instrumentation reads that tag, so the
+page-load span becomes a child of the server render.
 
-Loaded once from the root layout as a client component. It starts
+### 4.8 `apps/web/src/instrumentation-client.ts` — browser tracing and RUM
+
+Next.js runs this file once per page load, after the document loads and
+before hydration (a file convention since Next.js 15.3). It starts
 `WebTracerProvider` with the fetch, document-load and user-interaction
 instrumentations, the zone context manager, W3C `tracecontext` as the only
 propagator, and OTLP HTTP exporters for traces, metrics and logs pointed at
-the route handler in §4.9. The resource carries `service.name=web-browser`,
+the route handler in §4.9. The fetch instrumentation ignores the relay's
+own URL so the exporter's POSTs are never traced. The resource carries `service.name=web-browser`,
 `service.version`, `browser.mobile` and the D17 `session.id`. After sign-in
 the tracer sets `enduser.pseudo.id` on every span and record, taken from
 the session the server issued.
@@ -266,25 +279,26 @@ the session the server issued.
 The fetch instrumentation is configured with `propagateTraceHeaderCorsUrls`
 matching the core-api origin, so every call from the browser to FastAPI
 carries `traceparent`. The document-load instrumentation reads the
-`Server-Timing` header from D12, so the page-load span links to the server
-span that rendered the page. Attributes are filtered by the same allowlist
-as §4.2 through a `SpanProcessor`: `url.full` is replaced by scheme, host
-and path with the query string removed, and nothing from request or
+`<meta name="traceparent">` tag the root layout renders (§4.7), so the
+page-load span links to the server span that rendered the page. Attributes are filtered by the same allowlist
+as §4.2 through the guarded exporters: `url.full` is replaced by scheme,
+host and path with the query string removed, and nothing from request or
 response bodies is recorded.
 
 Real-user monitoring is four signal sources on top of the tracer:
 
 - **Page loads and navigations.** The document-load instrumentation covers
-  the first load. App Router navigations do not reload the document, so a
-  small hook on the router creates a `navigation` span per route change,
-  named by the route pattern.
+  the first load. App Router navigations do not reload the document, so the
+  file's exported `onRouterTransitionStart` hook, which Next.js calls on
+  every client navigation, opens a `navigation` span carrying the target
+  pathname and the navigation type.
 - **User interactions.** The user-interaction instrumentation opens a span
   per click, recording the element's id or xpath. It is configured for
   `click` only; no keyboard, input or change events, since those carry what
   the user typed (D18).
 - **Web vitals.** The `web-vitals` library reports LCP, CLS, INP, TTFB and
-  FCP; each is recorded on the histograms in §3.2 with the route pattern as
-  the only attribute.
+  FCP; each is recorded on the histograms in §3.2 with the pathname as the
+  only attribute.
 - **Errors.** `window.onerror` and `unhandledrejection` handlers emit a log
   record with `exception.type` and `exception.stacktrace` and increment
   `mulyankan.web.errors`. `exception.message` is dropped, as in §4.2, because
@@ -298,9 +312,10 @@ are one trace, and a vital or an error is joined to the same visit through
 ### 4.9 `apps/web/src/app/api/otlp/v1/[signal]/route.ts` — the OTLP relay
 
 A Next.js route handler for `traces`, `metrics` and `logs` that accepts
-`POST` bodies of `application/x-protobuf` and forwards them unchanged to the
-matching path under `OTEL_EXPORTER_OTLP_ENDPOINT` on the server side
-(D16). It does not parse or log the payload, enforces a body-size limit,
+`POST` bodies and forwards them, with their `Content-Type`, unchanged to
+the matching path under `OTEL_EXPORTER_OTLP_ENDPOINT` on the server side
+(D16). The browser exporters send OTLP as JSON and the Python exporter sends
+protobuf; the Collector's OTLP receiver accepts both. It does not parse or log the payload, enforces a body-size limit,
 and returns the Collector's status. The browser therefore never learns the
 Collector's address, and the Collector needs no CORS policy.
 
@@ -316,8 +331,8 @@ One user action produces one trace:
 1. `web-browser`: document-load span, or a fetch span when the user acts on
    an already-loaded page. It carries the trace id from here on.
 2. `web` (Next.js server): render and route-handler spans for the page,
-   linked from the browser through `Server-Timing`; any server-side `fetch`
-   to core-api continues the same trace.
+   linked to the browser through the `traceparent` meta tag; any
+   server-side `fetch` to core-api continues the same trace.
 3. `core-api` (FastAPI): the server span from the FastAPI instrumentation,
    picking up `traceparent` from either the browser or the Next.js server.
 4. Children of the core-api span: provider calls through the registry
@@ -380,11 +395,12 @@ is used only as an OTLP receiver.
 
 ### 6.2 `deploy/dev/` (D15)
 
-- `compose.yaml`: `core-api` (source mounted, uvicorn with
-  `--no-access-log`), `web` (`next dev`), `otel-collector`
-  (`otel/opentelemetry-collector-contrib`, digest-pinned), `lgtm`
-  (`grafana/otel-lgtm`, digest-pinned, Grafana on 3000). Only the two
-  applications and Grafana expose ports to the host.
+- `compose.yaml`: `otel-collector` (`otel/opentelemetry-collector-contrib`,
+  digest-pinned, OTLP on 4317 and 4318) and `lgtm` (`grafana/otel-lgtm`,
+  digest-pinned, Grafana on 3000). The two applications run on the host
+  with their usual dev commands and point at `localhost:4318`, which keeps
+  hot reload and avoids a second container image per runtime. Only the
+  Collector's OTLP ports and Grafana are published to the host.
 - `otel-collector.yaml`: `otlp` receiver (HTTP and gRPC); processors
   `memory_limiter`, `batch`, `resourcedetection` (env, system),
   `redaction` as defence in depth with the same allowlist as §4.2 and
@@ -397,8 +413,8 @@ is used only as an OTLP receiver.
   dependency of the project, and that no dashboard or alert committed here
   may be required for the system to function.
 
-The `Dockerfile` remains a placeholder; the compose stack runs from source.
-A real image is a separate concern.
+The `Dockerfile` remains a placeholder. Containerising the two
+applications for the compose stack is a separate concern.
 
 ### 6.3 Infrastructure observability (deployment-neutral)
 
@@ -459,8 +475,9 @@ auditor reads; keep the allowlist in one place with a comment per entry.
 - `platform/core/src/mulyankan_platform/observability/` as in §4;
   `build_app` calls `configure`; `registry.get` returns the proxy.
 - `apps/web/package.json`, `src/instrumentation.ts` (§4.7),
-  `src/otel-browser.ts` (§4.8), the OTLP relay route (§4.9), and the
-  `web-vitals` dependency.
+  `src/instrumentation-client.ts` (§4.8), the OTLP relay route (§4.9), the
+  `traceparent` meta tag in the root layout, and the `web-vitals`
+  dependency.
 - `deploy/dev/` as in §6.2.
 - ADR-0009 (adopting OpenTelemetry as the telemetry SPI) and the dated
   amendment to ADR-0003 exist as of 2026-09-09. The remaining rows of §2 are
