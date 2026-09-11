@@ -41,7 +41,6 @@ providers:
 |---|---|---|---|---|
 | kms | `mulyankan_spi.kms` | `conformance.kms` | sealing, export | M0 (reference) |
 | identity | `mulyankan_spi.identity` | `conformance.identity` | sign-in | M1 |
-| telemetry | `mulyankan_spi.telemetry` | `conformance.telemetry` | observability | M1 |
 | storage | `mulyankan_spi.storage` | `conformance.storage` | assets, sealing | M2 |
 | sanitize | `mulyankan_spi.sanitize` | `conformance.sanitize` | asset upload | M2 |
 | similarity | `mulyankan_spi.similarity` | `conformance.similarity` | validation | M2 |
@@ -49,6 +48,10 @@ providers:
 | gateway | `mulyankan_spi.gateway` | `conformance.gateway` | authoring proposals | M4 |
 | notify | `mulyankan_spi.notify` | `conformance.notify` | lifecycle events | M4 |
 | export | `mulyankan_spi.export` | `conformance.export` | readiness handoff | M4+ |
+
+Telemetry is not in the catalogue: the project adopts OpenTelemetry as that
+SPI (ADR-0011), bound by the OTel environment variables rather than
+`platform.yaml`; see `docs/observability.md`.
 
 M0 ships the `kms` SPI complete (interface, conformance suite, reference
 provider) to prove the full pluggability path. The remaining SPIs are added in
