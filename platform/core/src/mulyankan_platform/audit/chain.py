@@ -9,12 +9,18 @@ Invariants (v4 §1.10, ARC-02, DAT-05):
   hash, never artefact plaintext (ASR01-EVD-09, DAT-03).
 - Canonical bytes follow `docs/canonicalization.md` (draft v0.1) and are
   versioned; the verifier refuses unknown schema versions.
+- `append` is atomic. Reading the tail, numbering the event, and storing it is
+  one indivisible step, so concurrent writers cannot mint two events with the
+  same `seq` and `prev_hash` — a break `verify` reports and nothing can repair,
+  the log being append-only. The database-backed store owes the same guarantee
+  (a serialised sequence, not an advisory convention).
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
+import threading
 import uuid
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
@@ -103,6 +109,9 @@ class AuditLog:
 
     def __init__(self) -> None:
         self._events: list[AuditEvent] = []
+        # The core-api handlers are sync `def`, so Starlette runs them
+        # concurrently on the anyio threadpool: appends really do race.
+        self._lock = threading.Lock()
 
     def append(
         self,
@@ -114,32 +123,34 @@ class AuditLog:
         event_id: str | None = None,
         ts: datetime | None = None,
     ) -> AuditEvent:
-        """Append one event; `payload` is hashed and immediately discarded."""
+        """Append one event atomically; `payload` is hashed and discarded."""
         if payload is None:
             payload_hash = ""
         else:
             payload_hash = hashlib.sha256(canonical_bytes(payload)).hexdigest()
-        prev_hash = self._events[-1].hash if self._events else GENESIS_HASH
         moment = ts or datetime.now(timezone.utc)
-        event = AuditEvent(
-            event_id=event_id or uuid.uuid4().hex,
-            seq=len(self._events),
-            ts=moment.isoformat(timespec="milliseconds").replace("+00:00", "Z"),
-            actor=actor,
-            action=action,
-            object_refs=tuple(object_refs),
-            payload_hash=payload_hash,
-            prev_hash=prev_hash,
-            hash="",
-        )
-        event = replace(event, hash=compute_hash(event))
-        self._events.append(event)
+        with self._lock:
+            prev_hash = self._events[-1].hash if self._events else GENESIS_HASH
+            event = AuditEvent(
+                event_id=event_id or uuid.uuid4().hex,
+                seq=len(self._events),
+                ts=moment.isoformat(timespec="milliseconds").replace("+00:00", "Z"),
+                actor=actor,
+                action=action,
+                object_refs=tuple(object_refs),
+                payload_hash=payload_hash,
+                prev_hash=prev_hash,
+                hash="",
+            )
+            event = replace(event, hash=compute_hash(event))
+            self._events.append(event)
         return event
 
     @property
     def events(self) -> tuple[AuditEvent, ...]:
-        """Read-only view of the chain."""
-        return tuple(self._events)
+        """Read-only snapshot of the chain, consistent against live appends."""
+        with self._lock:
+            return tuple(self._events)
 
     def verify(self) -> VerifyResult:
-        return verify(self._events)
+        return verify(self.events)

@@ -23,6 +23,22 @@ row gains its test list at the milestone that closes it.
 | ARC-01..12 (architecture) | cross-cutting | per milestone |
 | SEC-01..14, DAT-01..08, INT-01..11 | cross-cutting | per milestone |
 
+## ASR02-OBS-01 — session heartbeat and first monitoring signal (M1)
+
+Implemented in `platform/core` (issue #30): platform-owned session
+register/heartbeat/close, the copy/cut/paste and heartbeat-gap signal, the
+content-free security event on the audit chain, and the Integrity Operator's
+JSON view. Every test in these modules carries the requirement ID:
+
+- `platform/core/tests/test_session_monitor.py`
+- `platform/core/tests/test_sessions_api.py`
+
+**Not yet closed.** The surface is unauthenticated: nothing validates a caller,
+and the operator view publishes the `session_id` that is the bearer for every
+write, so signals and closures can be forged onto an append-only chain. The row
+closes when the identity SPI (ADR-0004) validates tokens server-side. Until
+then the surface is development-only — see "Known limitations" in `SECURITY.md`.
+
 ## Standing DoD checks (v4 §11)
 
 Implemented as conformance tests under `tests/conformance/` and kept green
