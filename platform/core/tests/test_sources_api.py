@@ -254,6 +254,30 @@ def test_deleting_a_queued_source_does_not_zombie_the_directory(
     assert leftovers == [], f"deleted source left artefacts: {leftovers}"
 
 
+def test_page_images_are_served_by_index(client: TestClient) -> None:
+    """The count is one thing; the fetch-by-index route is another.
+
+    The router decodes the index back out of the artefact filename, so the
+    write/read pair needs its own round trip: embed one image, then fetch it
+    by index and prove the bytes come back.
+    """
+    document = pymupdf.open()
+    page = document.new_page()
+    pixmap = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 8, 8))
+    page.insert_image(pymupdf.Rect(0, 0, 72, 72), pixmap=pixmap)
+    page.insert_text((72, 96), "with image", fontname="helv")
+    data = document.tobytes()
+    document.close()
+
+    source = _upload_and_settle(client, data)
+    assert source["imageCount"] == 1
+
+    served = client.get(f"/sources/{source['id']}/pages/1/images/0")
+    assert served.status_code == 200
+    assert len(served.content) > 0
+    assert client.get(f"/sources/{source['id']}/pages/1/images/9").status_code == 404
+
+
 def test_healthz_still_reports_the_binding(client: TestClient) -> None:
     body = client.get("/healthz").json()
     descriptor = body["providers"]["extraction"]["descriptor"]
