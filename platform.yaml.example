@@ -1,0 +1,16 @@
+# Provider bindings for one environment (ADR-0003).
+#
+# The core never imports a provider: it resolves "module:attr" through the
+# registry at startup, and a capability with no binding here is refused at
+# call time. Copy to `platform.yaml`, or point $MULYANKAN_PLATFORM_CONFIG at
+# your own file.
+
+providers:
+  # Deterministic extraction: text, embedded images and page thumbnails out
+  # of a PDF's own content. It never recognises characters — a page with no
+  # text layer is reported as such and left for the `ocr` SPI.
+  extraction:
+    provider: mulyankan_provider_pymupdf:PyMuPdfExtraction
+
+  # No `kms` binding is shipped: only the interface and its conformance
+  # suite exist so far. Adding one here is all it takes.

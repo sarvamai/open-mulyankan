@@ -1,11 +1,11 @@
 'use client';
 
-import { Suspense, useState } from 'react';
-import { toast } from '@sarvam/tatva';
+import { Suspense, useCallback, useState } from 'react';
 import type { HeaderProps } from '@sarvam/tatva';
 
 import { PageShell } from '@/components/shell/page-shell';
 import { KnowledgeBaseManager } from './knowledge-base-manager';
+import { UploadDialog } from './upload-dialog';
 import type { Tab } from './knowledge-base-manager';
 
 export type { Tab } from './knowledge-base-manager';
@@ -35,6 +35,16 @@ export function KnowledgeBaseView() {
   const [composing, setComposing] = useState(false);
   // Bumped on every open so the manager can key a fresh composer draft.
   const [composeSession, setComposeSession] = useState(0);
+  const [uploading, setUploading] = useState(false);
+  // Bumped when an upload is accepted, so the manager re-reads `/sources`
+  // rather than waiting for its next poll to notice the new row.
+  const [uploadedAt, setUploadedAt] = useState(0);
+
+  const onUploaded = useCallback(() => setUploadedAt((value) => value + 1), []);
+
+  // Groups hold text books and exam papers; there is nothing to upload into
+  // one, so its header action uploads a text book.
+  const uploadKind = tab === 'paper' ? 'paper' : 'textbook';
 
   // Header renders the first two actions as buttons, in order — "Create
   // group" sits to the left of the upload action.
@@ -56,7 +66,7 @@ export function KnowledgeBaseView() {
       label: UPLOAD_LABEL[tab],
       icon: UPLOAD_ICON[tab],
       variant: 'primary',
-      onClick: () => toast.info('Upload is coming soon'),
+      onClick: () => setUploading(true),
     },
   ];
 
@@ -68,8 +78,15 @@ export function KnowledgeBaseView() {
           composing={composing}
           composeSession={composeSession}
           onComposingChange={setComposing}
+          uploadedAt={uploadedAt}
         />
       </Suspense>
+      <UploadDialog
+        open={uploading}
+        kind={uploadKind}
+        onOpenChange={setUploading}
+        onUploaded={onUploaded}
+      />
     </PageShell>
   );
 }

@@ -1,8 +1,13 @@
 /**
- * Mock knowledge base rows — the platform API does not exist yet, so the
- * knowledge base browses this list and the question bank's source step draws
- * its text books from the same one. 22 rows per kind so the paginated footer
- * is exercised (it renders once totalRows passes 20).
+ * Mock knowledge base rows.
+ *
+ * Text books now come from `/sources`, so the knowledge base browses these
+ * only for its **exam paper** tab — there is no ingest route for papers yet.
+ * The text book rows below are still read by the question bank's source step,
+ * which has no API of its own; that inconsistency goes when it gets one.
+ *
+ * 22 rows per kind so the paginated footer is exercised (it renders once
+ * totalRows passes 20).
  */
 
 import type { Kind, KnowledgeItem, Status, StatusEvent } from './types';
@@ -114,18 +119,6 @@ export const MOCK_ITEMS: KnowledgeItem[] = [
   ]),
 ];
 
-// TEMPORARY, DELETE ME — a hardcoded cover preview so the shelf can be judged
-// with a real book on it. `public/dev/ncert-class-10-science-cover.jpg` is page
-// one of a local NCERT Class 10 Science PDF, rasterised by hand. Remove this
-// block and that file once ingest renders covers for real.
-const DEV_COVERS: Record<string, string> = {
-  'textbook-1': '/dev/ncert-class-10-science-cover.jpg',
-};
-
-for (const item of MOCK_ITEMS) {
-  const cover = DEV_COVERS[item.id];
-  if (cover) item.coverUrl = cover;
-}
 /**
  * Chapter labels for a book or paper. The mock rows carry a chapter *count*
  * and nothing else — no table of contents is modelled, and none is invented
@@ -133,5 +126,7 @@ for (const item of MOCK_ITEMS) {
  * real ones.
  */
 export function chapterLabels(item: KnowledgeItem): string[] {
-  return Array.from({ length: item.chapters }, (_, index) => `Chapter ${index + 1}`);
+  // A source whose PDF declares no table of contents has no chapters to
+  // name, and none are invented — the caller shows an empty list.
+  return Array.from({ length: item.chapters ?? 0 }, (_, index) => `Chapter ${index + 1}`);
 }

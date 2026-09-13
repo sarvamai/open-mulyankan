@@ -15,10 +15,16 @@ path you read in a doc, check it exists:
 ls providers db contracts tests/conformance platform.yaml docs/canonicalization.md 2>&1
 ```
 
-Every one of those is absent today. If a task needs one, create it explicitly
-and say so — don't code as if it were already there.
+`providers/` now exists — one package, `extraction-pymupdf`, with its own
+`AGENTS.md`. So does `platform.yaml.example`; `platform.yaml` itself is
+gitignored, and `core_api` starts with zero bindings when there is none.
+`db/`, `contracts/`, `tests/conformance/` and `docs/canonicalization.md` are
+still absent. If a task needs one, create it explicitly and say so — don't
+code as if it were already there.
 `docs/provider-contracts.md` claims M0 ships a `kms` reference provider; only
-the interface and conformance suite exist.
+the interface and conformance suite exist. The one reference provider that
+does exist implements `extraction`, an SPI that post-dates that document and
+ADR-0003's table — see ADR-0009.
 
 ## Invariants (`docs/architecture.md` has all ten)
 
@@ -41,13 +47,22 @@ strings, or URLs.**
 
 ```bash
 # Python (3.12+)
-uv pip install -e platform/spi -e "platform/core[dev]"
-python -m pytest platform/spi platform/core -q
-python -m ruff check platform
+uv pip install -e platform/spi -e "platform/core[dev]" \
+               -e "providers/extraction-pymupdf[dev]"
+python -m pytest platform providers -q
+python -m ruff check platform providers
+
+# core-api — the web app expects it on :8000
+cp platform.yaml.example platform.yaml
+python -m uvicorn mulyankan_platform.core_api.main:app --port 8000
 
 # Web
 cd apps/web && pnpm install && pnpm dev
 ```
+
+The knowledge base's text books read `/sources` from core-api; with it down,
+that tab reports so and the other tabs carry on with their mock rows. Set
+`NEXT_PUBLIC_MULYANKAN_API` to point the client elsewhere.
 
 `core_api` reads bindings from `platform.yaml` (`$MULYANKAN_PLATFORM_CONFIG`).
 No such file is committed; with none, the app starts with zero bindings.
@@ -76,6 +91,9 @@ to a shorter summary.
 
 ## Conventions
 
+- Code, comment, and test practices live in
+  [`docs/code-practices.md`](docs/code-practices.md) — read it before your
+  first PR; it is the house style.
 - Decisions become ADRs in `docs/adr/`. Amend in place with a dated note; see
   ADR-0001. Never leave a decision only in a PR description.
 - Requirement-facing tests carry the requirement ID:
@@ -86,11 +104,12 @@ to a shorter summary.
 
 ## Open questions — ask, don't pick
 
-- **Which app serves which role.** `docs/architecture.md` maps all role
-  surfaces to `apps/web`; ADR-0008 gives content roles a separate signed thin
-  client meeting the server at `contracts/`. The client's scaffold exists
-  (`apps/client/`, ADR-0010) but serves no role until `contracts/` is
-  authored; the question stays open until then.
+- **Which app serves which role — SETTLED (ADR-0011).** `apps/web` is the
+  oversight client (coordinator, administrator, integrity operator, auditor);
+  `apps/client` (Tauri) is the content client (author, reviewer,
+  accessibility specialist, translator). The client still serves no role
+  until its real surfaces replace the mock ones; deployment topology and the
+  Postgres datastore are recorded in ADR-0011.
 - Pilot languages are deliberately unnamed (ADR-0006) — still pending for the
   platform. `apps/web` now carries a working list for its question language
   field (`apps/web/src/components/question-bank/languages.ts`: the Eighth
@@ -100,12 +119,23 @@ to a shorter summary.
   `platform/` names a language.
 - Canonicalization is `draft-v0.1`; `docs/canonicalization.md` is unwritten.
   Changing the byte format changes every audit hash.
+- **How source material is classified.** `/sources` treats extracted text as
+  Restricted (DAT-01) — out of logs, exception strings and list responses,
+  reachable only through `GET /sources/{id}/pages/{page}` — but the spec does
+  not classify source material, only artefacts. ADR-0009 records the reading
+  taken.
+- **Ingestion is not audited yet, deliberately.** A state change and its audit
+  event must commit in one transaction (invariant 2), and `sources` has no
+  transaction because it has no database. Writing to the chain from it would
+  produce a chain that cannot be trusted. This is owed with `db/`, not
+  forgotten — see `mulyankan_platform.sources.store` and ADR-0009.
 
 ## Keeping this file true
 
 Update it in the same PR when you: create one of the absent paths above, add a
 CI job, change a documented command, add or move a nested `AGENTS.md`, or
 settle an open question. Nested `AGENTS.md` files own their own trees
-(`platform/` and its packages, `apps/web/`, `design-system/`, `docs/`) — put
-tree-specific rules in the deepest one that fits, not here. A stale line is
-worse than no line: it is read as fact.
+(`platform/` and its packages, `apps/web/`, `apps/client/`,
+`design-system/`, `docs/`) — put tree-specific rules in the deepest one
+that fits, not here. A stale line is worse than no line: it is read as
+fact.

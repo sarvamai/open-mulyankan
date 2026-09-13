@@ -30,3 +30,10 @@ apps/web/dist/
 runs/
 *.log
 .DS_Store
+
+# Extraction workspace: uploaded sources and their artefacts (see
+# mulyankan_platform.sources.store — a stand-in until db/ exists).
+var/
+
+# Local provider bindings; commit platform.yaml.example instead.
+platform.yaml

@@ -5,6 +5,7 @@ list means the provider conforms. CI runs every in-repo provider against its
 suite, and external providers publish their results.
 """
 
+from mulyankan_spi.conformance.extraction import run_extraction_conformance
 from mulyankan_spi.conformance.kms import run_kms_conformance
 
-__all__ = ["run_kms_conformance"]
+__all__ = ["run_extraction_conformance", "run_kms_conformance"]
