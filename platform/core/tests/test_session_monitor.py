@@ -3,7 +3,7 @@
 import hashlib
 import sys
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -22,7 +22,7 @@ from mulyankan_platform.sessions import (
 # audit events, logs, or exception strings).
 QUESTION_TEXT = "What is the capital of India?"
 
-START = datetime(2026, 9, 11, 10, 0, 0, tzinfo=timezone.utc)
+START = datetime(2026, 9, 11, 10, 0, 0, tzinfo=UTC)
 
 # Enough live sessions that iterating them spans a thread switch; below this the
 # race exists but hides behind the GIL and the test stops catching anything.

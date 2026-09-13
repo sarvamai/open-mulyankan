@@ -5,8 +5,30 @@ this distribution — never on the platform core (ADR-0003).
 """
 
 from mulyankan_spi.descriptor import ProviderDescriptor
+from mulyankan_spi.extraction import (
+    DocumentInfo,
+    ExtractedImage,
+    ExtractionProvider,
+    ExtractionSession,
+    OutlineEntry,
+    PageExtraction,
+    Thumbnail,
+    UnreadableDocument,
+)
 from mulyankan_spi.kms import KmsProvider
 
 __version__ = "0.1.0"
 
-__all__ = ["KmsProvider", "ProviderDescriptor", "__version__"]
+__all__ = [
+    "DocumentInfo",
+    "ExtractedImage",
+    "ExtractionProvider",
+    "ExtractionSession",
+    "KmsProvider",
+    "OutlineEntry",
+    "PageExtraction",
+    "ProviderDescriptor",
+    "Thumbnail",
+    "UnreadableDocument",
+    "__version__",
+]

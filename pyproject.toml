@@ -1,0 +1,16 @@
+# Repository-wide ruff configuration. This file carries no [project] table —
+# it is not a package; it exists so one lint config covers platform/ and
+# providers/ (ruff reads the nearest pyproject.toml above each file).
+# Pinned in platform/core's dev extra: ruff>=0.16,<0.17.
+
+[tool.ruff]
+target-version = "py312"
+# src layout: imports resolve against each package's src/ directory.
+src = ["platform/spi/src", "platform/core/src", "providers/extraction-pymupdf/src"]
+
+[tool.ruff.lint]
+# E/W pycodestyle, F pyflakes, I import order, UP pyupgrade.
+select = ["E", "F", "W", "I", "UP"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["mulyankan_spi", "mulyankan_platform", "mulyankan_provider_pymupdf"]

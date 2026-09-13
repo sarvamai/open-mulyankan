@@ -1,20 +1,26 @@
 <!-- BEGIN:nextjs-agent-rules -->
+
 # This is NOT the Next.js you know
 
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
 <!-- END:nextjs-agent-rules -->
 
 # `apps/web` — experience layer
 
-Next.js 16 App Router · React 19 · Tailwind **3** · pnpm 9 · Node >= 20.9.
+Next.js 16 App Router · React 19 · Tailwind **3** · pnpm 10 (pinned in
+`package.json` `packageManager`) · Node >= 20.9.
 `pnpm dev | build | start | lint | check-types`. Root `AGENTS.md` has the
 invariants; `design-system/AGENTS.md` covers the vendored tarball.
 
 ## What exists
 
 `src/app/{layout,page,globals.css}`, the knowledge base at
-`src/app/knowledge-base/page.tsx` (text book / exam paper / group tabs over
-client-side mock data — no API yet; every tab is a shelf of cards, and text
+`src/app/knowledge-base/page.tsx` (text book / exam paper / group tabs; the
+**text book tab is wired to core-api** and the other two are still mock —
+every tab is a shelf of cards, and text
 books and exam papers also switch to a table (`?view=table`; groups have no
 table — nothing is modelled behind them to put in columns). “Create group” in
 the header opens the composer in `PageShell`'s rail — not a `Sheet` — so the
@@ -65,10 +71,23 @@ and `Set` for an exam paper, so it no longer rides unlabelled under the
 name.
 `src/components/knowledge-base/`, `src/components/exam-paper/` and
 `src/components/question-bank/` hold the page views (client view owning
-the header, plus the manager and editor). The knowledge base's mock rows
-live in `knowledge-base/mock-items.ts` — the question bank's source step
-picks text books and chapters from the same list, and a chapter is a
-number (`chapterLabels`) because no table of contents is modelled.
+the header, plus the manager and editor).
+**The one live API surface is `/sources`**: `src/lib/sources-api.ts` is
+the typed client (its shapes mirror `core_api/routers/sources.py`; when
+they drift the router is right), `knowledge-base/use-sources.ts` reads the
+list and polls it *only* while a source is still being extracted, and
+`knowledge-base/upload-dialog.tsx` posts the PDF with the facts extraction
+cannot read off it — name, subject, class, medium. A card's cover is the
+server-rendered first page, a 512px lossy JPEG from
+`GET /sources/{id}/cover`; rename and delete go to the server for real
+rows and to local state for mock ones, keyed on which ids came from the
+API. `knowledge-base/mock-items.ts` now backs the **exam paper** tab only
+(no ingest route for papers yet), though the question bank's source step
+still draws text books from it — a chapter there is a number
+(`chapterLabels`) because no table of contents is modelled.
+**`chapters` is `number | null`.** Null means the PDF declares no table of
+contents and nothing has inferred one; the column shows an em dash. Zero
+would be a claim about the book, so don't coalesce it.
 `question-bank/blueprint.ts` holds every derivation the wizard and its
 summary card share, so the gating and the card cannot disagree;
 `question-bank/languages.ts` is the question language list and
@@ -79,13 +98,12 @@ two are not yet reconciled in code). Both previews' 3D geometry lives in `global
 sheet over two leaves, printed with a container-query type scale) because
 utility classes cannot express it; a paper's ink is fixed rather than
 tokenised, since the stock is white in every theme. `coverUrl` on either
-face is the slot for a rendered PDF first page, and nothing populates it
-until an ingest API exists, so every book cover and every sheet is
-generated art today.
-`page.tsx` is a design-system smoke page. No API
-client, auth, store, tests, or Storybook yet — check before importing,
-and don't copy structure from the sibling `mulyankan-frontend` repo on
-the assumption it is here.
+face carries the server-rendered first page for a real source; mock rows
+have none, so their covers and every sheet are generated art.
+`page.tsx` is a design-system smoke page. No auth, store, tests, or
+Storybook yet, and `/sources` is the only API client — check before
+importing, and don't copy structure from the sibling `mulyankan-frontend`
+repo on the assumption it is here.
 
 ## This app is an untrusted client
 
@@ -95,8 +113,10 @@ database reads, no privileged credentials, no authorization decisions. A
 client-side check is a courtesy; the server must refuse independently. No
 question content in `console.log`, error messages, URLs, or telemetry.
 
-Which roles this app serves is unsettled — see the root file's open questions.
-Ask before building structure that assumes one reading.
+This app is the **oversight client** — coordinator, administrator,
+integrity operator, auditor (ADR-0012 settled the role mapping). Content
+roles use the Tauri client (`apps/client`); never build a content-role
+surface here.
 
 ## Load-bearing wires
 
@@ -109,6 +129,7 @@ Break one and it looks like a component bug, not a config error:
 | `next.config.ts` | `transpilePackages: ['@sarvam/tatva']` — the package ships untranspiled ESM |
 | `.npmrc` | `strict-peer-dependencies=false` — tatva declares `sonner@^1.4`, this app tracks 2.x |
 | `src/components/shell/icon-registry.tsx` | `IconProvider` must be imported from `@sarvam/tatva`, **not** `@sarvam/tatva/icon-context`: the subpath ships a second copy of the context and `Icon` reads the one bundled into `index.mjs`, so registering through the subpath silently resolves nothing (and the root export is missing from the type declarations) |
+| `src/lib/sources-api.ts` | `NEXT_PUBLIC_MULYANKAN_API` defaults to `http://localhost:8000`, which is the port the root `AGENTS.md` starts core-api on. core-api's own CORS allow-list defaults to `http://localhost:3000` — change one and change the other, or every call fails preflight with nothing in the network tab but a blocked request |
 | `package.json` | `pnpm.overrides` pin transitive deps to fixed, patched versions (arriving via tatva and next: `@ai-sdk/provider-utils`, `ai`, `jsondiffpatch`, `linkify-it`, `postcss`, `sharp`) — deliberate, not redundant |
 
 **No Tailwind 4** (tatva ships a v3 CommonJS preset). **No registry auth, no
@@ -144,6 +165,11 @@ Constraints that cause type errors or silent breakage:
   A name that is genuinely absent goes through `AppIconProvider`, not a
   hand-rolled SVG.
 - `Text` uses `variant` + `tone`, not `size`/`color`.
+- **`Button` takes `isLoading`, not `loading`.**
+- **A `Table` with no rows fetches `/images/empty-table.png`**, which this
+  app does not serve — so a view that renders the table before its data
+  arrives logs a 404 and flashes "no rows found". Gate on the loading
+  state instead; the knowledge base does this with `awaitingSources`.
 - **`Input` does not render a required marker.** `InputWrapper` supports
   `required` and draws the red asterisk, but `Input` never forwards it — it
   spreads onto the native `<input>` instead — while `Select` does. Mixing the

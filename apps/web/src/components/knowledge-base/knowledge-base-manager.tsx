@@ -21,6 +21,7 @@ import { GroupComposer, GroupComposerRail } from './group-composer';
 import { GroupShelf } from './group-shelf';
 import { bookFace, paperFace } from './item-face';
 import { MOCK_ITEMS } from './mock-items';
+import { useSources } from './use-sources';
 import type { Group, Kind, KnowledgeItem, Tab } from './types';
 
 export type { Kind, Tab } from './types';
@@ -136,8 +137,10 @@ const ITEM_FIELDS: ItemField[] = [
   { id: 'pages', label: () => 'Pages', value: (item) => String(item.pages), size: 100, sortable: true },
   {
     id: 'chapters',
+    // Null means the PDF declares no table of contents and nothing has
+    // inferred one — an em dash, not a zero, which would be a claim.
     label: () => 'Chapters',
-    value: (item) => String(item.chapters),
+    value: (item) => (item.chapters === null ? '—' : String(item.chapters)),
     size: 110,
     sortable: true,
   },
@@ -239,6 +242,7 @@ export function KnowledgeBaseManager({
   composing = false,
   composeSession = 0,
   onComposingChange,
+  uploadedAt = 0,
 }: {
   onTabChange?: (tab: Tab) => void;
   /** Whether the group composer panel is open — the header owns the toggle. */
@@ -246,12 +250,27 @@ export function KnowledgeBaseManager({
   /** Bumped by the header on every open; keys a fresh composer draft. */
   composeSession?: number;
   onComposingChange?: (composing: boolean) => void;
+  /** Bumped by the header when an upload is accepted; forces a re-read. */
+  uploadedAt?: number;
 }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const asideNode = usePageAside();
 
-  const [items, setItems] = useState<KnowledgeItem[]>(MOCK_ITEMS);
+  // Text books come from core-api; exam papers have no ingest route yet, so
+  // they stay on the mock rows until one exists.
+  const sources = useSources();
+  const [mockPapers, setMockPapers] = useState<KnowledgeItem[]>(() =>
+    MOCK_ITEMS.filter((item) => item.kind === 'paper'),
+  );
+  const items = useMemo(
+    () => [...sources.items, ...mockPapers],
+    [sources.items, mockPapers],
+  );
+  const sourceIds = useMemo(
+    () => new Set(sources.items.map((item) => item.id)),
+    [sources.items],
+  );
   const [groups, setGroups] = useState<Group[]>([]);
   const [search, setSearch] = useState('');
   const [renameTarget, setRenameTarget] = useState<Target | null>(null);
@@ -262,6 +281,16 @@ export function KnowledgeBaseManager({
   // Groups have no table — nothing is modelled behind them to put in columns —
   // so the toggle is hidden there and the param ignored.
   const view = param<View>(searchParams, 'view', VIEWS, 'cards');
+  // Only the text book tab reads core-api; the other two are local, so
+  // neither waits on it. Both gates require an empty list, so a poll that
+  // fails after a good read keeps showing the rows it already has.
+  const noSources = tab === 'textbook' && sources.items.length === 0;
+  const awaitingSources = noSources && sources.loading && !sources.error;
+  // With core-api unreachable the shelf has nothing to say. Its empty state
+  // would say the wrong thing — offering to change filters that are not the
+  // reason — so the banner above is the whole message.
+  const sourcesUnavailable = noSources && sources.error !== null;
+
   const requestedPage = Math.max(1, Number(searchParams.get('page')) || 1);
   const requestedPageSize = Number(searchParams.get('pageSize')) || 10;
   const pageSize = PAGE_SIZES.includes(requestedPageSize) ? requestedPageSize : 10;
@@ -270,6 +299,13 @@ export function KnowledgeBaseManager({
   useEffect(() => {
     onTabChange?.(tab);
   }, [tab, onTabChange]);
+
+  // A new upload is not visible until the list is re-read; waiting for the
+  // next poll would leave the shelf a beat behind the dialog closing.
+  const refreshSources = sources.refresh;
+  useEffect(() => {
+    if (uploadedAt > 0) refreshSources();
+  }, [uploadedAt, refreshSources]);
 
   // One condition per field; the operator is always equals, so `status=failed`
   // is the whole param.
@@ -407,13 +443,25 @@ export function KnowledgeBaseManager({
     setRenameName(target.name);
   }
 
-  function handleRename() {
+  async function handleRename() {
     if (!renameTarget) return;
     const name = renameName.trim();
     if (!name) return;
     const { type, id } = renameTarget;
     if (type === 'item') {
-      setItems((rows) => rows.map((row) => (row.id === id ? { ...row, name } : row)));
+      // A real source is renamed on the server; a mock paper only here.
+      if (sourceIds.has(id)) {
+        try {
+          await sources.rename(id, name);
+        } catch (caught) {
+          toast.error(caught instanceof Error ? caught.message : 'Rename failed');
+          return;
+        }
+      } else {
+        setMockPapers((rows) =>
+          rows.map((row) => (row.id === id ? { ...row, name } : row)),
+        );
+      }
     } else {
       setGroups((rows) => rows.map((row) => (row.id === id ? { ...row, name } : row)));
     }
@@ -421,13 +469,23 @@ export function KnowledgeBaseManager({
     toast.success(`Renamed to “${name}”`);
   }
 
-  function handleDelete() {
+  async function handleDelete() {
     if (!deleteTarget) return;
     const { type, id, name } = deleteTarget;
     if (type === 'item') {
       // A group holds ids, not copies, so a deleted item leaves its groups —
       // and the open draft — by itself; both resolve ids on every render.
-      setItems((rows) => rows.filter((row) => row.id !== id));
+      if (sourceIds.has(id)) {
+        try {
+          // Deletes the extracted text, images and cover with it.
+          await sources.remove(id);
+        } catch (caught) {
+          toast.error(caught instanceof Error ? caught.message : 'Delete failed');
+          return;
+        }
+      } else {
+        setMockPapers((rows) => rows.filter((row) => row.id !== id));
+      }
     } else {
       setGroups((rows) => rows.filter((row) => row.id !== id));
     }
@@ -480,6 +538,19 @@ export function KnowledgeBaseManager({
     <>
       <Box display="flex" direction="column" gap={12}>
         <Tabs tabs={TABS} value={tab} onValueChange={handleTabChange} />
+        {/* Text books are the only tab reading core-api, so its trouble is
+         * reported once, here, rather than as an empty shelf that looks like
+         * a filter with no matches. */}
+        {sources.error && tab === 'textbook' ? (
+          <Box p={8} bg="secondary" rounded="sm" display="flex" direction="column" gap={2}>
+            <Text variant="label-sm" tone="danger">
+              Text books could not be loaded
+            </Text>
+            <Text variant="body-xs" tone="tertiary">
+              {`${sources.error}. Start it with: uvicorn mulyankan_platform.core_api.main:app --port 8000`}
+            </Text>
+          </Box>
+        ) : null}
         <Box display="flex" wrap="wrap" align="center" gap={6}>
           <Box w={120}>
             <Input
@@ -504,7 +575,17 @@ export function KnowledgeBaseManager({
             </Box>
           )}
         </Box>
-        {tab !== 'group' && view === 'cards' && (
+        {/* Until the first `/sources` response lands there is nothing to say
+         * about the shelf — and an empty state would say the wrong thing,
+         * offering to change filters that are not the reason. */}
+        {awaitingSources ? (
+          <Box py={12} display="flex" justify="center">
+            <Text variant="body-sm" tone="tertiary">
+              Loading text books…
+            </Text>
+          </Box>
+        ) : null}
+        {!awaitingSources && !sourcesUnavailable && tab !== 'group' && view === 'cards' && (
           <CardShelf
             emptyIcon={SHELF_COPY[tab].icon}
             emptyTitle={SHELF_COPY[tab].empty}
@@ -546,7 +627,7 @@ export function KnowledgeBaseManager({
             })}
           </CardShelf>
         )}
-        {tab !== 'group' && view === 'table' && (
+        {!awaitingSources && !sourcesUnavailable && tab !== 'group' && view === 'table' && (
           <Table
             data={pageRows}
             columns={columnsFor(tab, composing)}
