@@ -58,9 +58,7 @@ DEFAULT_WORKSPACE = os.environ.get("MULYANKAN_WORKSPACE", "var/workspace")
 DEFAULT_MAX_UPLOAD_MB = int(os.environ.get("MULYANKAN_MAX_UPLOAD_MB", "64"))
 # The web app runs on a different origin in development. The allow-list is
 # explicit: a wildcard would let any page on the machine call this API.
-DEFAULT_CORS_ORIGINS = os.environ.get(
-    "MULYANKAN_CORS_ORIGINS", "http://localhost:3000"
-)
+DEFAULT_CORS_ORIGINS = os.environ.get("MULYANKAN_CORS_ORIGINS", "http://localhost:3000")
 
 
 def configure_logging() -> None:

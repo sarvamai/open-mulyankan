@@ -118,9 +118,7 @@ class ProviderRegistry:
         report: dict[str, dict] = {}
         for spi, binding in self._bindings.items():
             descriptor = getattr(binding.instance, "describe", None)
-            described: ProviderDescriptor | None = (
-                descriptor() if descriptor else None
-            )
+            described: ProviderDescriptor | None = descriptor() if descriptor else None
             report[spi] = {
                 "provider": binding.provider,
                 "descriptor": described.as_dict() if described else None,
