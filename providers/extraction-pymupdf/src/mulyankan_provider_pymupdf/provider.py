@@ -19,6 +19,7 @@ from types import TracebackType
 from typing import Self
 
 import pymupdf
+
 from mulyankan_spi.descriptor import ProviderDescriptor
 from mulyankan_spi.extraction import (
     DocumentInfo,

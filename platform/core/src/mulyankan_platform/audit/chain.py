@@ -22,9 +22,9 @@ import hashlib
 import json
 import threading
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass, replace
-from datetime import datetime, timezone
-from typing import Sequence
+from datetime import UTC, datetime
 
 CANONICAL_SCHEMA_VERSION = "draft-v0.1"
 GENESIS_HASH = "0" * 64
@@ -128,7 +128,7 @@ class AuditLog:
             payload_hash = ""
         else:
             payload_hash = hashlib.sha256(canonical_bytes(payload)).hexdigest()
-        moment = ts or datetime.now(timezone.utc)
+        moment = ts or datetime.now(UTC)
         with self._lock:
             prev_hash = self._events[-1].hash if self._events else GENESIS_HASH
             event = AuditEvent(

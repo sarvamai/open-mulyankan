@@ -8,6 +8,7 @@ and its page count self-evident.
 
 import pymupdf
 import pytest
+
 from mulyankan_provider_pymupdf import PyMuPdfExtraction
 from mulyankan_spi.conformance.extraction import run_extraction_conformance
 from mulyankan_spi.extraction import ExtractionProvider, UnreadableDocument

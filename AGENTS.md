@@ -72,12 +72,11 @@ No such file is committed; with none, the app starts with zero bindings.
 used here: this repository is public and `sarvamai/security-redirect` is
 private, and GitHub does not let a public repository call a reusable workflow
 that lives in a private one. `ci.yml` carries the call, commented out, and
-says what restoring it needs. `build-and-test` is
-still the template's `echo` placeholder, so the Python tests are local-only —
-a green PR proves nothing about them. `Dockerfile` is likewise a placeholder.
-`ruff` is unconfigured and unpinned (`>=0.6`); it reports findings in
-pre-existing `platform/` code, so check `git stash`-clean output before
-blaming your change.
+says what restoring it needs. `build-and-test` runs the real Python gate:
+ruff over `platform` and `providers`, then `pytest platform providers`.
+`Dockerfile` is still a placeholder. `ruff` is pinned (`>=0.16,<0.17`) and
+configured by the root `pyproject.toml` — which is a lint config only, not
+a package; it carries no `[project]` table.
 
 Separately, commenting `/review` on a PR runs the `sarvam-code` reviewer
 (`.github/workflows/pr-review.yml`, prompt and plumbing in `.github/review/`).

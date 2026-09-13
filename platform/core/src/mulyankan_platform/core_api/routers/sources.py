@@ -30,6 +30,7 @@ from mulyankan_platform.ingestion.pipeline import run_extraction
 from mulyankan_platform.registry import RegistryError
 from mulyankan_platform.sources.models import Source
 from mulyankan_platform.sources.store import SourceStore
+from mulyankan_spi.extraction import ExtractionProvider
 
 logger = logging.getLogger(__name__)
 
@@ -179,7 +180,9 @@ async def upload_source(
 ) -> SourceView:
     """Register a document and start extracting it. Returns before it finishes."""
     try:
-        provider = request.app.state.registry.get("extraction")
+        provider = request.app.state.registry.get_typed(
+            "extraction", ExtractionProvider
+        )
     except RegistryError as exc:
         # An unbound capability is refused at call time (ADR-0003, rule 1).
         raise HTTPException(status_code=503, detail=str(exc)) from exc
@@ -227,8 +230,9 @@ def get_source(request: Request, source_id: str) -> SourceView:
 @router.patch("/{source_id}", response_model=SourceView)
 def rename_source(request: Request, source_id: str, body: RenameRequest) -> SourceView:
     """Rename a source. Extraction output is untouched."""
-    source = _require(request, source_id)
-    source.name = body.name.strip()
+    source = _store(request).rename(source_id, body.name.strip())
+    if source is None:
+        raise HTTPException(status_code=404, detail="No such source")
     return _rendered(request, source)
 
 

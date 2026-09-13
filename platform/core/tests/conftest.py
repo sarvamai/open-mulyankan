@@ -41,9 +41,17 @@ class FakeKms:
         return signature == b"FAKE-SIG"
 
 
+class NotAProvider:
+    """Loads fine but satisfies no SPI — the typed-registry refusal case."""
+
+    def __init__(self, config: dict) -> None:
+        self.config = config
+
+
 def _register() -> None:
     module = types.ModuleType(FAKE_MODULE_NAME)
     module.FakeKms = FakeKms
+    module.NotAProvider = NotAProvider
     sys.modules[FAKE_MODULE_NAME] = module
 
 

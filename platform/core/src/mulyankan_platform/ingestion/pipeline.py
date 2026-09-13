@@ -26,13 +26,12 @@ from __future__ import annotations
 import asyncio
 import logging
 import mimetypes
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-
-from mulyankan_spi.extraction import ExtractionProvider, UnreadableDocument
 
 from mulyankan_platform.sources.models import ExtractionSummary, Source, StageRun
 from mulyankan_platform.sources.store import SourceStore
+from mulyankan_spi.extraction import ExtractionProvider, UnreadableDocument
 
 logger = logging.getLogger(__name__)
 
@@ -72,8 +71,12 @@ class ExtractionFailed(Exception):
     """A stage failed. The message is content-free and safe to show."""
 
 
+class _SourceDeleted(Exception):
+    """The source was deleted while its job ran; a silent, expected exit."""
+
+
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _finish(run: StageRun, state: str) -> None:
@@ -88,12 +91,11 @@ def _extension_for(media_type: str) -> str:
 def _write_pages(
     session, store: SourceStore, source_id: str, page_count: int
 ) -> ExtractionSummary:
-    """Read every page once, writing text and images. Runs in a thread."""
-    text_dir = store.directory(source_id) / "text"
-    image_dir = store.image_dir(source_id)
-    text_dir.mkdir(parents=True, exist_ok=True)
-    image_dir.mkdir(parents=True, exist_ok=True)
+    """Read every page once, writing text and images. Runs in a thread.
 
+    Every write goes through the store's `*_if_live` guards: a delete racing
+    the job means the artefact is refused, never resurrected on disk.
+    """
     pages_with_text = 0
     pages_with_unusable_text = 0
     character_count = 0
@@ -101,7 +103,8 @@ def _write_pages(
 
     for page in range(1, page_count + 1):
         extraction = session.extract_page(page)
-        store.text_path(source_id, page).write_text(extraction.text, encoding="utf-8")
+        if not store.write_text_if_live(source_id, page, extraction.text):
+            raise _SourceDeleted(source_id)
         if extraction.has_text_layer:
             pages_with_text += 1
             if not text_is_usable(extraction.text):
@@ -109,8 +112,10 @@ def _write_pages(
         character_count += extraction.character_count
         for image in extraction.images:
             suffix = _extension_for(image.media_type)
-            name = f"{page:05d}-{image.index:03d}{suffix}"
-            (image_dir / name).write_bytes(image.data)
+            if not store.write_image_if_live(
+                source_id, page, image.index, image.data, suffix
+            ):
+                raise _SourceDeleted(source_id)
             image_count += 1
 
     return ExtractionSummary(
@@ -130,7 +135,16 @@ async def run_extraction(
     document_path: Path = store.document_path(source.id)
     session = None
     try:
+        # A delete during a queued job must not resurrect the source: the
+        # record is gone, so stop before recreating its directory. The check
+        # repeats after the read because the job can sit queued for a while.
+        if not store.exists(source.id):
+            logger.info("extraction skipped source=%s deleted before start", source.id)
+            return
         document = await asyncio.to_thread(document_path.read_bytes)
+        if not store.exists(source.id):
+            logger.info("extraction skipped source=%s deleted while queued", source.id)
+            return
 
         stage = source.begin_stage("read", "Reading document", now=_now())
         try:
@@ -166,9 +180,10 @@ async def run_extraction(
                     1, max_edge=COVER_MAX_EDGE, quality=COVER_QUALITY
                 )
             )
-            await asyncio.to_thread(
-                store.cover_path(source.id).write_bytes, thumbnail.data
-            )
+            if not store.write_cover_if_live(source.id, thumbnail.data):
+                raise _SourceDeleted(source.id)
+        except _SourceDeleted:
+            raise
         except Exception as exc:
             _finish(stage, "failed")
             raise ExtractionFailed(
@@ -191,6 +206,10 @@ async def run_extraction(
         source.status = "failed"
         source.error = str(exc)
         logger.warning("extraction failed source=%s reason=%s", source.id, exc)
+    except _SourceDeleted:
+        # The record is gone; there is nothing to mark and nothing to say.
+        # The store's guarded writes mean no artefact of this job survives.
+        logger.info("extraction abandoned source=%s deleted mid-job", source.id)
     except Exception as exc:
         source.status = "failed"
         source.error = f"unexpected {type(exc).__name__}"

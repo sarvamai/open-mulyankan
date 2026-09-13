@@ -5,7 +5,8 @@ Python 3.12+, hatchling. Root `AGENTS.md` has the invariants.
 | Package | Distribution | Depends on |
 |---|---|---|
 | `platform/spi` | `mulyankan-spi` | nothing (`dependencies = []`) |
-| `platform/core` | `mulyankan-platform` | `mulyankan-spi`, fastapi, uvicorn, pyyaml |
+| `platform/core` | `mulyankan-platform` | `mulyankan-spi`, fastapi, uvicorn, pyyaml, python-multipart |
+| `providers/extraction-pymupdf` | `mulyankan-provider-pymupdf` | `mulyankan-spi`, pymupdf |
 
 Each package carries its own `AGENTS.md` with the rules that apply only
 there — read the one nearest the file you are editing.
@@ -23,8 +24,9 @@ there — read the one nearest the file you are editing.
 ## Tests
 
 ```bash
-uv pip install -e platform/spi -e "platform/core[dev]"
-python -m pytest platform/spi platform/core -q
+uv pip install -e platform/spi -e "platform/core[dev]" \
+               -e "providers/extraction-pymupdf[dev]"
+python -m pytest platform providers -q
 ```
 
 No root pytest config — point it at the package dirs. A stale

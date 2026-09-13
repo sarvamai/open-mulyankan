@@ -1,23 +1,19 @@
-"""Layer 1 core-api entrypoint.
+"""Layer 1 core-api entrypoint: assembly only.
 
 The health surface reports the provider bindings the registry resolved — the
 smallest honest demonstration of the platform + provider architecture
-(ADR-0003). The session-monitoring surface (ASR02-OBS-01) is the first domain
-surface: register, 30-second heartbeat, close, client-reported signals, and
-the Integrity Operator's content-free JSON view, which is a pure read — gap
-signals are committed by the lifespan sweeper, never by a request.
+(ADR-0003). The domain surfaces live beside this file:
 
-M0 also carries `/sources`: uploading source material and reading what
-deterministic extraction found in it. Nothing there touches the authoring
-lifecycle — a source has no versions, no review, and no seal — so the state
-machine still arrives with M1.
+    routers/sessions.py   /v1/sessions…, /v1/integrity/sessions (ASR02-OBS-01)
+    routers/sources.py    /sources — upload and deterministic extraction
+
+Nothing here touches the authoring lifecycle — a source has no versions, no
+review, and no seal — so the state machine still arrives with M1.
 
 Identity validation arrives with the identity SPI (ADR-0004); until then
 callers present a pseudonymous actor identifier and **nothing authenticates
-these routes**. The `session_id` is the only bearer, and the operator view
-publishes it, so anyone who can reach this surface can close another actor's
-session or forge signals onto an append-only chain. See "Known limitations" in
-`SECURITY.md`: this is a development surface until that slice lands.
+these routes**. See "Known limitations" in `SECURITY.md`: this is a
+development surface until that slice lands.
 
 Configuration, all optional:
 
@@ -37,26 +33,22 @@ import logging
 import os
 from collections.abc import AsyncIterator
 from pathlib import Path
-from typing import Literal
 
 import yaml
-from fastapi import FastAPI, Query, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel, ConfigDict, Field
 from starlette.concurrency import run_in_threadpool
 
 from mulyankan_platform.audit import AuditLog
+from mulyankan_platform.core_api.routers.sessions import (
+    register_exception_handlers,
+)
+from mulyankan_platform.core_api.routers.sessions import (
+    register_routes as register_session_routes,
+)
 from mulyankan_platform.core_api.routers.sources import router as sources_router
 from mulyankan_platform.registry import ProviderRegistry
-from mulyankan_platform.sessions import (
-    DEFAULT_PAGE_SIZE,
-    MAX_PAGE_SIZE,
-    SWEEP_INTERVAL,
-    SessionClosedError,
-    SessionMonitor,
-    UnknownSessionError,
-)
+from mulyankan_platform.sessions import SWEEP_INTERVAL, SessionMonitor
 from mulyankan_platform.sources.store import SourceStore
 
 logger = logging.getLogger(__name__)
@@ -66,7 +58,9 @@ DEFAULT_WORKSPACE = os.environ.get("MULYANKAN_WORKSPACE", "var/workspace")
 DEFAULT_MAX_UPLOAD_MB = int(os.environ.get("MULYANKAN_MAX_UPLOAD_MB", "64"))
 # The web app runs on a different origin in development. The allow-list is
 # explicit: a wildcard would let any page on the machine call this API.
-DEFAULT_CORS_ORIGINS = os.environ.get("MULYANKAN_CORS_ORIGINS", "http://localhost:3000")
+DEFAULT_CORS_ORIGINS = os.environ.get(
+    "MULYANKAN_CORS_ORIGINS", "http://localhost:3000"
+)
 
 
 def configure_logging() -> None:
@@ -88,22 +82,6 @@ def configure_logging() -> None:
         package.addHandler(handler)
         # The handler above is the only one that should print these records.
         package.propagate = False
-
-
-class RegisterSessionRequest(BaseModel):
-    """Body of `POST /v1/sessions`; extra fields are refused, not ignored."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    actor: str = Field(min_length=1, max_length=128)
-
-
-class SignalReportRequest(BaseModel):
-    """Body of `POST /v1/sessions/{id}/signals`; the gap is server-detected only."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    signal: Literal["copy", "cut", "paste"]
 
 
 async def _sweep_forever(monitor: SessionMonitor) -> None:
@@ -173,50 +151,9 @@ def build_app(
         """Liveness plus the resolved provider bindings (content-free)."""
         return {"status": "ok", "providers": registry.describe()}
 
-    @app.post("/v1/sessions", status_code=201)
-    def register_session(body: RegisterSessionRequest) -> dict:
-        """Open a session (ASR02-OBS-01); identity validation lands with the SPI."""
-        return monitor.register(body.actor).as_dict()
-
-    @app.post("/v1/sessions/{session_id}/heartbeat")
-    def heartbeat(session_id: str) -> dict:
-        """Record liveness; re-arms heartbeat-gap detection for the session."""
-        return monitor.heartbeat(session_id).as_dict()
-
-    @app.post("/v1/sessions/{session_id}/close")
-    def close_session(session_id: str) -> dict:
-        """Close the session; the terminal state, reached only explicitly."""
-        return monitor.close(session_id).as_dict()
-
-    @app.post("/v1/sessions/{session_id}/signals", status_code=201)
-    def report_signal(session_id: str, body: SignalReportRequest) -> dict:
-        """Publish a client-reported signal; deducts the score, audits the event."""
-        return monitor.report_signal(session_id, body.signal).as_dict()
-
-    @app.get("/v1/integrity/sessions")
-    def integrity_sessions(
-        status: Literal["all", "active", "closed"] = "all",
-        limit: int = Query(default=DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE),
-    ) -> dict:
-        """The Integrity Operator's JSON list (ASR02-OBS-01); no content fields.
-
-        A pure read: `silent` is derived from the clock, and gap signals are
-        committed by the sweeper, so polling this never alters the evidence.
-        """
-        page = monitor.integrity_view(status=status, limit=limit)
-        return {"sessions": [snapshot.as_dict() for snapshot in page]}
-
+    register_session_routes(app, monitor)
     app.include_router(sources_router, prefix="/sources")
-
-    @app.exception_handler(UnknownSessionError)
-    def unknown_session(request: Request, exc: UnknownSessionError) -> JSONResponse:
-        """Refuse unknown sessions without echoing the identifier."""
-        return JSONResponse(status_code=404, content={"detail": "unknown session"})
-
-    @app.exception_handler(SessionClosedError)
-    def closed_session(request: Request, exc: SessionClosedError) -> JSONResponse:
-        """A closed session accepts no further writes."""
-        return JSONResponse(status_code=409, content={"detail": "session is closed"})
+    register_exception_handlers(app)
 
     return app
 

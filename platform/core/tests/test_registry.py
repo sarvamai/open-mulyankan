@@ -49,3 +49,23 @@ def test_describe_reports_bindings() -> None:
     report = registry.describe()
     assert report["kms"]["provider"] == FAKE_TARGET
     assert report["kms"]["descriptor"]["deterministic"] is True
+
+
+def test_get_typed_returns_the_bound_provider() -> None:
+    registry = ProviderRegistry.from_mapping(_mapping())
+    provider = registry.get_typed("kms", KmsProvider)
+    assert provider.describe().name == "fake-kms"
+
+
+def test_get_typed_refuses_an_instance_that_satisfies_no_spi() -> None:
+    registry = ProviderRegistry.from_mapping(
+        {"providers": {"kms": {"provider": "testkit_fake_provider:NotAProvider"}}}
+    )
+    with pytest.raises(RegistryError, match="does not satisfy KmsProvider"):
+        registry.get_typed("kms", KmsProvider)
+
+
+def test_get_typed_refuses_an_unbound_capability() -> None:
+    registry = ProviderRegistry.from_mapping(_mapping())
+    with pytest.raises(RegistryError, match="no provider bound for spi 'storage'"):
+        registry.get_typed("storage", KmsProvider)

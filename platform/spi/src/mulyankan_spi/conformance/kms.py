@@ -12,7 +12,7 @@ from mulyankan_spi.kms import KmsProvider
 _CASES = [
     b"",
     b"a",
-    "मूल्यांकन — evaluation ☺".encode("utf-8"),
+    "मूल्यांकन — evaluation ☺".encode(),
     bytes(range(256)) * 3,
 ]
 

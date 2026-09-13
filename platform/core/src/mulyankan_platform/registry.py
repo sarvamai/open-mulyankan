@@ -5,15 +5,24 @@ per-environment `platform.yaml`; the registry loads them at startup and
 refuses unknown or malformed bindings. A capability with no binding is
 refused at call time — the same rule as a model removed from the approved
 list.
+
+`get(spi, protocol)` is the typed access path: it checks the bound instance
+against the SPI's `runtime_checkable` Protocol and returns it as that type,
+so a provider missing a method fails at binding-check time with a message
+naming the SPI — not mid-request with an `AttributeError` from inside the
+core. The untyped `get(spi)` remains for callers that legitimately need the
+raw instance (`describe` reporting).
 """
 
 from __future__ import annotations
 
 import importlib
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, TypeVar
 
 import yaml
+
+from mulyankan_spi.descriptor import ProviderDescriptor
 
 
 class RegistryError(Exception):
@@ -28,6 +37,9 @@ class Binding:
     provider: str  # "module:attr" target as written in configuration
     config: dict
     instance: Any
+
+
+_P = TypeVar("_P")
 
 
 class ProviderRegistry:
@@ -82,13 +94,35 @@ class ProviderRegistry:
             raise RegistryError(f"no provider bound for spi '{spi}'")
         return binding.instance
 
+    def get_typed(self, spi: str, protocol: type[_P]) -> _P:
+        """Return the binding for `spi` checked against `protocol`.
+
+        `protocol` must be a `@runtime_checkable` Protocol from
+        `mulyankan_spi`. An instance that does not satisfy it is refused here
+        — the same refuse-don't-fall-back rule as every other binding fault —
+        so a provider that drifts from its SPI fails with a message naming
+        the SPI, not with an `AttributeError` mid-request.
+        """
+        binding = self._bindings.get(spi)
+        if binding is None:
+            raise RegistryError(f"no provider bound for spi '{spi}'")
+        if not isinstance(binding.instance, protocol):
+            raise RegistryError(
+                f"provider '{binding.provider}' bound for spi '{spi}' does not "
+                f"satisfy {protocol.__name__}"
+            )
+        return binding.instance  # type: ignore[return-value] # checked above
+
     def describe(self) -> dict[str, dict]:
         """Report every binding with its descriptor, for /healthz and audits."""
         report: dict[str, dict] = {}
         for spi, binding in self._bindings.items():
             descriptor = getattr(binding.instance, "describe", None)
+            described: ProviderDescriptor | None = (
+                descriptor() if descriptor else None
+            )
             report[spi] = {
                 "provider": binding.provider,
-                "descriptor": descriptor().as_dict() if descriptor else None,
+                "descriptor": described.as_dict() if described else None,
             }
         return report

@@ -53,7 +53,7 @@ import threading
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from mulyankan_platform.audit import AuditLog
 
@@ -175,7 +175,7 @@ class SessionMonitor:
         now: Callable[[], datetime] | None = None,
     ) -> None:
         self._audit = audit_log
-        self._now = now or (lambda: datetime.now(timezone.utc))
+        self._now = now or (lambda: datetime.now(UTC))
         self._lock = threading.RLock()
         self._sessions: dict[str, _SessionState] = {}
         # The in-memory stand-in for an indexed `WHERE status = 'active'`: the

@@ -62,6 +62,11 @@ These repeat across the codebase. They are the house style.
 5. **Content-free records.** Logs, audit events, exception strings, and
    URLs carry opaque ids and counts — never question text, filenames, or
    actor real names. This is invariant-level law, not style.
+6. **Check-then-write must be atomic.** A "does it still exist?" followed
+   later by a write is a race window; do the check and the write under one
+   lock hold (see `SourceStore.write_if_live`), or the delete that lands in
+   between resurrects what it removed. The test
+   `test_deleting_a_queued_source_does_not_zombie_the_directory` pins this.
 
 ## 4. Comments — what belongs, what never does
 

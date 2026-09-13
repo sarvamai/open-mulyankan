@@ -10,6 +10,7 @@ import time
 import pymupdf
 import pytest
 from fastapi.testclient import TestClient
+
 from mulyankan_platform.core_api.main import create_app_from_mapping
 
 CONFIG = {
@@ -218,6 +219,39 @@ def test_rename_and_delete(client: TestClient) -> None:
     assert client.delete(f"/sources/{created['id']}").status_code == 204
     assert client.get(f"/sources/{created['id']}").status_code == 404
     assert client.get("/sources").json() == []
+
+
+def test_rename_of_an_unknown_source_is_a_404(client: TestClient) -> None:
+    response = client.patch("/sources/deadbeef", json={"name": "Physics"})
+
+    assert response.status_code == 404
+
+
+def test_deleting_a_queued_source_does_not_zombie_the_directory(
+    client, tmp_path
+) -> None:
+    """A delete racing the job must not resurrect the source's directory.
+
+    The job is queued when POST returns; deleting before it runs used to
+    leave the pipeline recreating the directory and writing artefacts for a
+    record that no longer exists. The workspace must end clean.
+    """
+    created = _upload(client)
+    source_id = created["id"]
+
+    assert client.delete(f"/sources/{source_id}").status_code == 204
+
+    # Wait for the queued job itself to finish (the 404-ing source cannot be
+    # polled), then the workspace must hold nothing for it.
+    jobs = client.app.state.jobs
+    deadline = time.monotonic() + 10
+    while jobs and time.monotonic() < deadline:
+        time.sleep(0.02)
+    assert not jobs, "extraction job never finished"
+
+    workspace = tmp_path / "workspace"
+    leftovers = [path for path in workspace.rglob("*") if source_id in path.parts]
+    assert leftovers == [], f"deleted source left artefacts: {leftovers}"
 
 
 def test_healthz_still_reports_the_binding(client: TestClient) -> None:

@@ -9,12 +9,17 @@ session-monitoring surface of ASR02-OBS-01).
 - `registry.py` — `ProviderRegistry` resolves `"module:attr"` bindings from
   `platform.yaml` via `importlib`. The core never imports a provider any
   other way; malformed or unloadable bindings raise at startup, an unbound
-  capability at call time.
+  capability at call time. `get_typed(spi, protocol)` additionally checks
+  the instance against the SPI's `runtime_checkable` Protocol and refuses a
+  provider that does not satisfy it — call sites get a typed instance, not
+  `Any`.
 - `audit/chain.py` — the append-only audit chain (below).
-- `core_api/main.py` — reads `platform.yaml`
-  (`$MULYANKAN_PLATFORM_CONFIG`); no such file is committed, and with none
-  the app starts with zero bindings. Serves the session-monitoring endpoints
-  (`/v1/sessions...`, `/v1/integrity/sessions`).
+- `core_api/main.py` — assembly only: config loading
+  (`$MULYANKAN_PLATFORM_CONFIG`; no file is committed, and with none the app
+  starts with zero bindings), CORS, the lifespan sweeper, `/healthz`. The
+  endpoints live in `core_api/routers/` — `sessions.py`
+  (`/v1/sessions…`, `/v1/integrity/sessions`) and `sources.py`
+  (`/sources` upload + extraction).
 - `sessions/monitor.py` — session register/heartbeat/close (ASR02-OBS-01, a
   platform concern per ADR-0004) and the first monitoring signal:
   client-reported copy/cut/paste or a server-detected heartbeat gap. A signal
@@ -45,9 +50,20 @@ session-monitoring surface of ASR02-OBS-01).
   **Unauthenticated.** Nothing validates a caller, and the `session_id` the
   operator view publishes is the bearer for every write. Read "Known
   limitations" in `SECURITY.md` before exposing this anywhere.
-- `tests/` — registry, audit-chain, healthz, and session-monitor tests;
-  requirement-facing names carry their ID (`test_asrevd02_...`,
-  `test_asr02obs01_...`).
+- `sources/` — `models.py` (Source, stages, counts-only summary) and
+  `store.py` (in-memory index over workspace files). Every public method
+  holds the store's lock, and artefact writes go through the `*_if_live`
+  guards — check-then-write is atomic under the lock, so a delete racing
+  the extraction job cannot resurrect a deleted source's directory. No
+  audit events yet: without a database there is no transaction to commit
+  one with (invariant 2).
+- `ingestion/pipeline.py` — the three-stage extraction job (read → pages →
+  cover), blocking work in worker threads, record mutation on the event
+  loop only. Decides per page whether the text layer is usable — the
+  platform's judgement, not the provider's — and logs counts, never text.
+- `tests/` — registry, audit-chain, healthz, session-monitor, and
+  sources/ingestion tests; requirement-facing names carry their ID
+  (`test_asrevd02_...`, `test_asr02obs01_...`).
 
 ## `audit/chain.py` is wire format, not style
 
