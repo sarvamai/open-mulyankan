@@ -55,7 +55,7 @@ def test_asr02obs01_register_heartbeat_signal_roundtrip() -> None:
 
     view = client.get("/v1/integrity/sessions")
     assert view.status_code == 200
-    (mine,) = [s for s in view.json()["sessions"] if s["session_id"] == session_id]
+    (mine,) = (s for s in view.json()["sessions"] if s["session_id"] == session_id)
     assert mine["score"] == 90
     assert mine["signal_count"] == 1
     assert mine["last_signal"] == "copy"

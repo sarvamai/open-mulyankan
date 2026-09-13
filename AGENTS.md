@@ -18,7 +18,8 @@ ls providers db contracts tests/conformance platform.yaml docs/canonicalization.
 `providers/` now exists — one package, `extraction-pymupdf`, with its own
 `AGENTS.md`. So does `platform.yaml.example`; `platform.yaml` itself is
 gitignored, and `core_api` starts with zero bindings when there is none.
-`db/`, `contracts/`, `tests/conformance/` and `docs/canonicalization.md` are
+`docs/canonicalization.md` is written (draft-v0.1, matching
+`audit/chain.py`). `db/`, `contracts/` and `tests/conformance/` are
 still absent. If a task needs one, create it explicitly and say so — don't
 code as if it were already there.
 `docs/provider-contracts.md` claims M0 ships a `kms` reference provider; only
@@ -44,6 +45,9 @@ Daily consequence: **no question content in logs, audit events, exception
 strings, or URLs.**
 
 ## Commands
+
+Every command below is also a make target — `make install`, `make test`,
+`make lint`, `make run-api`, `make run-admin` (`make help` lists them).
 
 ```bash
 # Python (3.12+)
@@ -116,8 +120,9 @@ to a shorter summary.
   array in the client, standing in for `cycle.required_languages` until there
   is an API to read; the ADR's own status is unchanged, and nothing in
   `platform/` names a language.
-- Canonicalization is `draft-v0.1`; `docs/canonicalization.md` is unwritten.
-  Changing the byte format changes every audit hash.
+- Canonicalization is `draft-v0.1`; the format is specified in
+  `docs/canonicalization.md`. Changing the byte format changes every audit
+  hash — bump the version deliberately, with an ADR.
 - **How source material is classified.** `/sources` treats extracted text as
   Restricted (DAT-01) — out of logs, exception strings and list responses,
   reachable only through `GET /sources/{id}/pages/{page}` — but the spec does

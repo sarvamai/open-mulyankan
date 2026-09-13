@@ -76,6 +76,7 @@ closure is evidence, not demonstration.
 | [`docs/adr/`](docs/adr/) | Architecture decision records |
 | [`docs/provider-contracts.md`](docs/provider-contracts.md) | How providers plug in and certify |
 | [`docs/traceability.md`](docs/traceability.md) | Requirement → component → test index |
+| [`docs/as-built.md`](docs/as-built.md) | What exists today: as-is vs target, the gap, limitations |
 | [`docs/code-practices.md`](docs/code-practices.md) | How code is written here: structure, patterns, comments |
 | [`apps/web/README.md`](apps/web/README.md) | Web app: running it, and the vendored design system |
 
