@@ -103,12 +103,12 @@ to a shorter summary.
 
 ## Open questions — ask, don't pick
 
-- **Which app serves which role — SETTLED (ADR-0011).** `apps/web` is the
+- **Which app serves which role — SETTLED (ADR-0012).** `apps/web` is the
   oversight client (coordinator, administrator, integrity operator, auditor);
   `apps/client` (Tauri) is the content client (author, reviewer,
   accessibility specialist, translator). The client still serves no role
   until its real surfaces replace the mock ones; deployment topology and the
-  Postgres datastore are recorded in ADR-0011.
+  Postgres datastore are recorded in ADR-0012.
 - Pilot languages are deliberately unnamed (ADR-0006) — still pending for the
   platform. `apps/web` now carries a working list for its question language
   field (`apps/web/src/components/question-bank/languages.ts`: the Eighth

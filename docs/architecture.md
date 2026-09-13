@@ -29,7 +29,7 @@ Draft → In Review → In Accessibility Check → Sealing → Sealed
 | Spec group | Repo location |
 |---|---|
 | Experience (oversight role surfaces) | `apps/web` (Next.js, `@sarvam/tatva`) |
-| Experience (content role surfaces) | `apps/client` (Tauri; ADR-0010, ADR-0011) |
+| Experience (content role surfaces) | `apps/client` (Tauri; ADR-0010, ADR-0012) |
 | Application (domain services) | `platform/core` (FastAPI) |
 | Workers (protected jobs) | `platform/core` workers + `providers/*` |
 | Data (PostgreSQL, audit store, object store) | `db/`, `providers/storage-*`, `providers/kms-*` |

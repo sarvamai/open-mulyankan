@@ -19,7 +19,7 @@ a why gets "fixed" away later.
 | an HTTP endpoint | `platform/core/.../core_api/routers/<feature>.py` | one router file per feature, never a bigger `main.py` |
 | a vendor-specific skill (PDF, keys, OCR, a model) | `providers/<skill>-<vendor>/` | plugs are swappable; the core never imports them |
 | a shared interface (a job description) | `platform/spi/` | zero dependencies, provider authors install it alone |
-| a screen | `apps/web/` (oversight roles) or `apps/client/` (content roles) | one role, one surface (ADR-0011) |
+| a screen | `apps/web/` (oversight roles) or `apps/client/` (content roles) | one role, one surface (ADR-0012) |
 | a deployment artefact | `deploy/` | packaging is not logic |
 | a decision's *reason* | `docs/adr/` | decisions outlive PR descriptions |
 

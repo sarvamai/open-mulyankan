@@ -114,7 +114,7 @@ client-side check is a courtesy; the server must refuse independently. No
 question content in `console.log`, error messages, URLs, or telemetry.
 
 This app is the **oversight client** — coordinator, administrator,
-integrity operator, auditor (ADR-0011 settled the role mapping). Content
+integrity operator, auditor (ADR-0012 settled the role mapping). Content
 roles use the Tauri client (`apps/client`); never build a content-role
 surface here.
 

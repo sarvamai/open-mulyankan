@@ -15,7 +15,7 @@ pnpm tauri build  # per-OS bundle (unsigned until the packaging phase)
 ## What this app is
 
 **The content client** — author, reviewer, accessibility specialist,
-translator (ADR-0011 settled the mapping; `apps/web` is the oversight
+translator (ADR-0012 settled the mapping; `apps/web` is the oversight
 client — never build a content-role surface there). ADR-0008 limits it to
 exactly four operations: **authenticate, receive one assigned task, act,
 report**. Everything else is denied by design: no question-bank browsing,
